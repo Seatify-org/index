@@ -4,14 +4,22 @@ import Navbar from "../components/Navbar";
 import { AuthProvider } from "../contexts/AuthContext";
 
 export default function Root() {
-  // Apply theme class to body element
+  // Apply theme class to html element
   useEffect(() => {
     const applyTheme = () => {
-      const theme = localStorage.getItem('theme') || 'dark';
+      const root = document.documentElement;
+      const theme = localStorage.getItem('vite-ui-theme') || 'dark';
+      
+      // Remove all theme classes first
+      root.classList.remove('light', 'dark', 'light-theme');
+      
       if (theme === 'light') {
-        document.body.classList.add('light-theme');
+        root.classList.add('light-theme');
+      } else if (theme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light-theme';
+        root.classList.add(systemTheme === 'dark' ? 'dark' : 'light-theme');
       } else {
-        document.body.classList.remove('light-theme');
+        root.classList.add('dark');
       }
     };
 
