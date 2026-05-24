@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: seatify_postgres
+    environment:
+      POSTGRES_USER: seatify
+      POSTGRES_PASSWORD: seatify_password
+      POSTGRES_DB: seatify
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seatify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  booking-service:
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    container_name: seatify_booking_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: seatify
+      DB_PASSWORD: seatify_password
+      DB_NAME: seatify
+      SERVER_PORT: 8082
+      LOG_LEVEL: debug
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: seatify_auth_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: seatify
+      DB_PASSWORD: seatify_password
+      DB_NAME: seatify
+      SERVER_PORT: 8081
+      LOG_LEVEL: debug
+      JWT_SECRET: your-secret-key-change-in-production
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
