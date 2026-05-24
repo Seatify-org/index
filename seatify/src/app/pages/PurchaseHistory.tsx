@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { ShoppingBag, Calendar, Filter, Film, Popcorn, Shirt, ArrowLeft } from "lucide-react";
 import { formatRub } from "../utils/formatRub";
 import { useAuth } from "../contexts/AuthContext";
-import { movies } from "../data/movies";
 import { useNavigate } from "react-router";
 
 type FilterType = 'all' | 'tickets' | 'food' | 'merch';
@@ -19,105 +18,55 @@ interface Purchase {
   details?: string;
 }
 
-const mockPurchases: Purchase[] = [
-  {
-    id: 'p1',
-    type: 'ticket',
-    title: 'Neon Dreams',
-    imageUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=400&h=600&fit=crop',
-    date: '2026-03-28',
-    price: 1499,
-    details: '2 билета • KARO 11 Oktyabr',
-  },
-  {
-    id: 'p2',
-    type: 'food',
-    title: 'Попкорн большой + 2 газировки',
-    imageUrl: 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?w=400&h=400&fit=crop',
-    date: '2026-03-28',
-    price: 1097,
-    details: 'Семейное комбо',
-  },
-  {
-    id: 'p3',
-    type: 'ticket',
-    title: 'The Last Horizon',
-    imageUrl: 'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=400&h=600&fit=crop',
-    date: '2026-03-20',
-    price: 499,
-    details: '1 билет • Formula Kino Europe',
-  },
-  {
-    id: 'p4',
-    type: 'merch',
-    title: 'Футболка Quantum Nexus',
-    imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop',
-    date: '2026-03-15',
-    price: 1199,
-    details: 'Размер: L • Чёрный',
-  },
-  {
-    id: 'p5',
-    type: 'ticket',
-    title: 'Celestial',
-    imageUrl: 'https://images.unsplash.com/photo-1518676590629-3dcbd9c5a5c9?w=400&h=600&fit=crop',
-    date: '2026-03-12',
-    price: 1499,
-    details: '2 билета • Pioneer Cinema',
-  },
-  {
-    id: 'p6',
-    type: 'food',
-    title: 'Начос + хот-дог',
-    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop',
-    date: '2026-03-12',
-    price: 748,
-    details: 'Премиум закуски',
-  },
-  {
-    id: 'p7',
-    type: 'ticket',
-    title: 'Velocity',
-    imageUrl: 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=600&fit=crop',
-    date: '2026-03-08',
-    price: 1999,
-    details: '2 билета • 4DX • Formula Kino Europe',
-  },
-  {
-    id: 'p8',
-    type: 'ticket',
-    title: 'Midnight Echoes',
-    imageUrl: 'https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop',
-    date: '2026-03-05',
-    price: 1399,
-    details: '2 билета • KARO 13 Kuntsevo',
-  },
-  {
-    id: 'p9',
-    type: 'food',
-    title: 'Ведро попкорна',
-    imageUrl: 'https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=400&fit=crop',
-    date: '2026-03-01',
-    price: 499,
-    details: 'Большой попкорн',
-  },
-  {
-    id: 'p10',
-    type: 'merch',
-    title: 'Постер Neon Dreams',
-    imageUrl: 'https://images.unsplash.com/photo-1594908900066-3f47337549d8?w=400&h=400&fit=crop',
-    date: '2026-02-28',
-    price: 999,
-    details: '60×90 см • Премиум печать',
-  },
-];
+const API_URL = import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083';
 
 export default function PurchaseHistory() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   
-  const filteredPurchases = mockPurchases.filter(purchase => {
+  useEffect(() => {
+    const fetchPurchases = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${API_URL}/api/v1/bookings/user/${user?.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Transform backend data to frontend format
+          const transformedPurchases: Purchase[] = data.map((booking: any) => ({
+            id: `b${booking.id}`,
+            type: 'ticket' as PurchaseType,
+            title: booking.session?.movie_title || 'Бронирование',
+            imageUrl: booking.session?.poster_url || 'https://images.unsplash.com/photo-1485846234645-a62644f84728?w=400&h=600&fit=crop',
+            date: booking.booked_at || new Date().toISOString(),
+            price: booking.total_amount_cents / 100 || 0,
+            details: `${booking.seats?.length || 0} мест(а) • ${booking.session?.cinema_name || ''}`,
+          }));
+          setPurchases(transformedPurchases);
+        }
+      } catch (error) {
+        console.error('Failed to fetch purchases:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchPurchases();
+  }, [token, user?.id]);
+  
+  const filteredPurchases = purchases.filter(purchase => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'tickets') return purchase.type === 'ticket';
     if (activeFilter === 'food') return purchase.type === 'food';
