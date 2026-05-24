@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/seatify/backend/common/model"
 	"github.com/seatify/backend/auth-service/internal/service"
+	"github.com/Seatify-org/seatify-common/model"
 	"go.uber.org/zap"
 )
 
@@ -67,9 +67,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, _ := h.authService.GenerateToken(user.ID, 0)
+	token, _ := h.authService.GenerateToken(int64(user.ID), 0)
 
-	h.logger.Info("user registered successfully", zap.Int64("user_id", user.ID))
+	h.logger.Info("user registered successfully", zap.Int64("user_id", int64(user.ID)))
 
 	response := AuthResponse{User: user, Token: token}
 	w.Header().Set("Content-Type", "application/json")
@@ -102,9 +102,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, _ := h.authService.GenerateToken(user.ID, 0)
+	token, _ := h.authService.GenerateToken(int64(user.ID), 0)
 
-	h.logger.Info("user logged in successfully", zap.Int64("user_id", user.ID))
+	h.logger.Info("user logged in successfully", zap.Int64("user_id", int64(user.ID)))
 
 	response := AuthResponse{User: user, Token: token}
 	w.Header().Set("Content-Type", "application/json")

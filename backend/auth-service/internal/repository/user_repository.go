@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/seatify/backend/common/model"
+	"github.com/Seatify-org/seatify-common/model"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -27,16 +27,18 @@ func NewPostgresUserRepository(db *sql.DB) UserRepository {
 }
 
 func (r *postgresUserRepository) Create(user *model.User) error {
-	query := `INSERT INTO users (email, password, name, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	now := time.Now().Format(time.RFC3339)
-	return r.db.QueryRow(query, user.Email, user.Password, user.Name, now, now).Scan(&user.ID)
+	// Исправлено: password_hash -> password, name -> first_name, last_name
+	query := `INSERT INTO users (email, password_hash, first_name, last_name, phone, created_at, updated_at) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+	now := time.Now()
+	return r.db.QueryRow(query, user.Email, user.Password, user.FirstName, user.LastName, user.Phone, now, now).Scan(&user.ID)
 }
 
 func (r *postgresUserRepository) GetByID(id int64) (*model.User, error) {
-	query := `SELECT id, email, password, name, created_at, updated_at FROM users WHERE id = $1`
+	// Исправлено: поля соответствуют БД
+	query := `SELECT id, email, password_hash, first_name, last_name, phone, created_at, updated_at FROM users WHERE id = $1`
 	user := &model.User{}
-	err := r.db.QueryRow(query, id).Scan(&user.ID, &user.Email, &user.Password, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(query, id).Scan(&user.ID, &user.Email, &user.Password, &user.FirstName, &user.LastName, &user.Phone, &user.CreatedAt, &user.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrUserNotFound
 	}
@@ -44,9 +46,10 @@ func (r *postgresUserRepository) GetByID(id int64) (*model.User, error) {
 }
 
 func (r *postgresUserRepository) GetByEmail(email string) (*model.User, error) {
-	query := `SELECT id, email, password, name, created_at, updated_at FROM users WHERE email = $1`
+	// Исправлено: поля соответствуют БД
+	query := `SELECT id, email, password_hash, first_name, last_name, phone, created_at, updated_at FROM users WHERE email = $1`
 	user := &model.User{}
-	err := r.db.QueryRow(query, email).Scan(&user.ID, &user.Email, &user.Password, &user.Name, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(query, email).Scan(&user.ID, &user.Email, &user.Password, &user.FirstName, &user.LastName, &user.Phone, &user.CreatedAt, &user.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrUserNotFound
 	}
@@ -54,9 +57,9 @@ func (r *postgresUserRepository) GetByEmail(email string) (*model.User, error) {
 }
 
 func (r *postgresUserRepository) Update(user *model.User) error {
-	query := `UPDATE users SET email = $1, name = $2, updated_at = $3 WHERE id = $4`
-	now := time.Now().Format(time.RFC3339)
-	result, err := r.db.Exec(query, user.Email, user.Name, now, user.ID)
+	query := `UPDATE users SET email = $1, first_name = $2, last_name = $3, phone = $4, updated_at = $5 WHERE id = $6`
+	now := time.Now()
+	result, err := r.db.Exec(query, user.Email, user.FirstName, user.LastName, user.Phone, now, user.ID)
 	if err != nil {
 		return err
 	}

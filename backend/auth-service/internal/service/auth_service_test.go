@@ -3,7 +3,7 @@ package service_test
 import (
 	"testing"
 
-	"github.com/seatify/backend/common/model"
+	"github.com/Seatify-org/seatify-common/model"
 	"github.com/seatify/backend/auth-service/internal/repository"
 	"github.com/seatify/backend/auth-service/internal/repository/mocks"
 	"github.com/seatify/backend/auth-service/internal/service"

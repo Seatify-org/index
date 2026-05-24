@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/seatify/backend/common/model"
+	"github.com/Seatify-org/seatify-common/model"
 	"github.com/seatify/backend/auth-service/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )

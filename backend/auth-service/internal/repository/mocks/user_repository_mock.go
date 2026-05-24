@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"github.com/seatify/backend/common/model"
+	"github.com/Seatify-org/seatify-common/model"
 	"github.com/seatify/backend/auth-service/internal/repository"
 )
 

@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
+	_ "github.com/seatify/backend/auth-service/docs"
 	"github.com/seatify/backend/auth-service/internal/config"
 	"github.com/seatify/backend/auth-service/internal/handler"
 	"github.com/seatify/backend/auth-service/internal/repository"
 	"github.com/seatify/backend/auth-service/internal/service"
-	"github.com/seatify/backend/common/logger"
-	_ "github.com/swaggo/swag"
+	"github.com/Seatify-org/seatify-common/logger"
 	httpSwagger "github.com/swaggo/http-swagger"
-	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
+	_ "github.com/swaggo/swag"
 	"go.uber.org/zap"
 )
 
