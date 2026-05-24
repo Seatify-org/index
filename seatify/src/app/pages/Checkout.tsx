@@ -104,20 +104,46 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateStep2()) return;
+    if (!validateStep2() || !bookingData) return;
     
     setIsProcessing(true);
     
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    setIsProcessing(false);
-    setStep(3);
-    
-    // Clear booking data
-    sessionStorage.removeItem('bookingData');
-    
-    toast.success('Booking confirmed!');
+    try {
+      // Get auth token from context or localStorage
+      const token = localStorage.getItem('auth_token');
+      
+      // Create booking via API
+      const response = await fetch(`${import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083'}/api/v1/bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          session_id: parseInt(bookingData.sessionId),
+          seat_ids: bookingData.seats?.map(s => parseInt(s)) || [],
+          total_amount_cents: Math.round((bookingData.grandTotal || bookingData.totalPrice) * 100),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create booking');
+      }
+
+      const result = await response.json();
+      
+      setIsProcessing(false);
+      setStep(3);
+      
+      // Clear booking data
+      sessionStorage.removeItem('bookingData');
+      
+      toast.success('Бронирование успешно подтверждено!');
+    } catch (error: any) {
+      setIsProcessing(false);
+      toast.error(error.message || 'Ошибка при создании бронирования');
+    }
   };
   
   if (!bookingData) {
