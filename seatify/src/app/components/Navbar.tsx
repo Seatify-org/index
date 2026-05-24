@@ -34,7 +34,7 @@ export default function Navbar() {
   
   // Load theme from localStorage on mount
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' || 'dark';
+    const savedTheme = localStorage.getItem('vite-ui-theme') as 'dark' | 'light' || 'dark';
     setTheme(savedTheme);
   }, []);
   
@@ -100,7 +100,7 @@ export default function Navbar() {
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
+    localStorage.setItem('vite-ui-theme', newTheme);
     
     // Dispatch custom event to notify Root component
     window.dispatchEvent(new Event('themeChange'));
