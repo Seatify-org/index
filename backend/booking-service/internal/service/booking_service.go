@@ -22,7 +22,7 @@ func NewBookingService(bookingRepo repository.BookingRepository) *BookingService
 	}
 }
 
-func (s *BookingService) CreateBooking(userID, sessionID int64, totalAmount float64, paymentID string) (*model.Booking, error) {
+func (s *BookingService) CreateBooking(userID, sessionID int64, totalAmount float64) (*model.Booking, error) {
 	if userID <= 0 || sessionID <= 0 || totalAmount <= 0 {
 		return nil, ErrInvalidBookingData
 	}
@@ -32,7 +32,6 @@ func (s *BookingService) CreateBooking(userID, sessionID int64, totalAmount floa
 		SessionID:   sessionID,
 		TotalAmount: totalAmount,
 		Status:      "pending",
-		PaymentID:   paymentID,
 	}
 
 	if err := s.bookingRepo.Create(booking); err != nil {

@@ -1,46 +1,45 @@
 ```
-# Go-specific ignores
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 *.o
+*.obj
+*.exe
+*.dll
+*.so
 *.a
 *.out
-*.test
-*.prof
-coverage.out
-
-# Dependencies and build artifacts
-vendor/
 bin/
 
-# Mocks and test artifacts
-mocks/
-*.mock.go
+# Dependencies
+venv/
+.venv/
+node_modules/
+.mypy_cache/
+.pytest_cache/
+target/
+.gradle/
 
-# Database migrations - preserve the migration files but ignore other db artifacts
-*.db
-*.db-journal
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.swp
+*.swo
 
-# Environment variables
+# Environment
 .env
 .env.local
 *.env.*
 
-# IDE and editor files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Mocks and test artifacts
+mock_*.go
 ```

@@ -19,7 +19,7 @@ func TestBookingService_CreateBooking_Success(t *testing.T) {
 
 	bookingService := service.NewBookingService(mockRepo)
 
-	booking, err := bookingService.CreateBooking(1, 100, 500.0, "payment_123")
+	booking, err := bookingService.CreateBooking(1, 100, 500.0)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, booking)
@@ -33,15 +33,15 @@ func TestBookingService_CreateBooking_InvalidData(t *testing.T) {
 	mockRepo := mocks.NewMockBookingRepository()
 	bookingService := service.NewBookingService(mockRepo)
 
-	_, err := bookingService.CreateBooking(0, 100, 500.0, "payment_123")
+	_, err := bookingService.CreateBooking(0, 100, 500.0)
 	assert.Error(t, err)
 	assert.Equal(t, service.ErrInvalidBookingData, err)
 
-	_, err = bookingService.CreateBooking(1, 0, 500.0, "payment_123")
+	_, err = bookingService.CreateBooking(1, 0, 500.0)
 	assert.Error(t, err)
 	assert.Equal(t, service.ErrInvalidBookingData, err)
 
-	_, err = bookingService.CreateBooking(1, 100, 0, "payment_123")
+	_, err = bookingService.CreateBooking(1, 100, 0)
 	assert.Error(t, err)
 	assert.Equal(t, service.ErrInvalidBookingData, err)
 }
