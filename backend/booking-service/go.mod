@@ -1,11 +1,11 @@
 module github.com/seatify/backend/booking-service
 
-go 1.19
+go 1.26.3
 
 require (
+	github.com/Seatify-org/seatify-common v1.0.1
 	github.com/gorilla/mux v1.8.1
 	github.com/lib/pq v1.10.9
-	github.com/seatify/backend/common v0.0.0
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.4
@@ -30,5 +30,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/seatify/backend/common => ../common

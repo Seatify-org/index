@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"github.com/seatify/backend/common/config"
+	"github.com/Seatify-org/seatify-common/config"
 )
 
 type BookingConfig struct {
