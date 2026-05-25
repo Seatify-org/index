@@ -1,33 +1,129 @@
 ```
-# Database migrations backup
-*.sql.bak
-*.sql~
+# Dependencies
+vendor/
 
-# Environment and temporary files
-*.tmp
-*.log
+# Compiled/Generated files
+*.exe
+*.dll
+*.so
+*.o
+*.a
+*.obj
+*.out
+*.pyc
+*.class
+__pycache__/
+*.pyo
+*.pyd
 
-# Editor/IDE files
+# Build artifacts
+dist/
+build/
+target/
+bin/
+*.jar
+*.war
+*.zip
+*.tar.gz
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+
+# Editors/IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# System files
+*~
 .DS_Store
 Thumbs.db
 
-# Local environment overrides
-.env.local
+# Logs
+*.log
 
-# Backup and compressed files
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Temporary files
+*.tmp
+*.temp
 *.bak
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
+*.backup
+
+# Package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+git-submodule-status
+*.sublime-workspace
+.project
+.pydevproject
+.vscode/settings.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Go specific
+*.a
+*.o
+*.so
+*.test
+*.prof
+go.mod
+go.sum
+!go.mod
+!go.sum
+cover.out
+Godeps/
+bin/
+pkg/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+.DS_Store
+.gitignore
+!Makefile
+!Dockerfile
+!README.md
+!main.go
+!go.mod
+!go.sum
 ```
