@@ -135,7 +135,8 @@ export default function Checkout() {
         user_id: 1, 
         session_id: cleanSessionId,
         total_amount_cents: totalAmount,
-        payment_id: paymentId
+        payment_id: paymentId,
+        status: "pending"
       };
 
       console.log("🚀 Отправка запроса:", payload);
