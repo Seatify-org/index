@@ -7,9 +7,9 @@ import { toast } from "sonner";
 
 interface BookingData {
   movieId: string;
-  sessionId: string;
+  sessionId: string | number;
   cinemaId: string;
-  seats?: string[];
+  seats?: (string | number)[];
   tickets?: {
     adult: number;
     child: number;
@@ -46,143 +46,166 @@ export default function Checkout() {
   useEffect(() => {
     const data = sessionStorage.getItem('bookingData');
     if (data) {
-      setBookingData(JSON.parse(data));
+      try {
+        const parsed = JSON.parse(data);
+        setBookingData(parsed);
+        if (!parsed.sessionId) {
+          toast.error('Ошибка: Данные сеанса отсутствуют.');
+          navigate('/');
+        }
+      } catch (e) {
+        toast.error('Ошибка чтения данных бронирования.');
+        navigate('/');
+      }
     } else {
-      toast.error('Данные бронирования не найдены. Пожалуйста, сначала выберите места.');
+      toast.error('Данные бронирования не найдены.');
       navigate('/');
     }
   }, [navigate]);
   
   const validateStep1 = () => {
     const newErrors: Record<string, string> = {};
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
+    if (!formData.name.trim()) newErrors.name = 'Введите имя';
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Введите Email';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Неверный формат Email';
     }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
   
   const validateStep2 = () => {
     const newErrors: Record<string, string> = {};
-    
     if (!formData.cardNumber.trim()) {
-      newErrors.cardNumber = 'Card number is required';
+      newErrors.cardNumber = 'Введите номер карты';
     } else if (!/^\d{16}$/.test(formData.cardNumber.replace(/\s/g, ''))) {
-      newErrors.cardNumber = 'Invalid card number';
+      newErrors.cardNumber = 'Нужно 16 цифр';
     }
-    
     if (!formData.expiryDate.trim()) {
-      newErrors.expiryDate = 'Expiry date is required';
+      newErrors.expiryDate = 'Введите срок';
     } else if (!/^\d{2}\/\d{2}$/.test(formData.expiryDate)) {
-      newErrors.expiryDate = 'Invalid format (MM/YY)';
+      newErrors.expiryDate = 'Формат ММ/ГГ';
     }
-    
     if (!formData.cvv.trim()) {
-      newErrors.cvv = 'CVV is required';
+      newErrors.cvv = 'Введите CVV';
     } else if (!/^\d{3}$/.test(formData.cvv)) {
-      newErrors.cvv = 'Invalid CVV';
+      newErrors.cvv = '3 цифры';
     }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
   
   const handleNext = () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
+    if (step === 1 && validateStep1()) setStep(2);
+  };
+
+  const parseNumericId = (val: any): number | null => {
+    if (typeof val === 'number') return val;
+    if (!val) return null;
+    const numbers = String(val).match(/\d+/);
+    if (numbers) {
+      const num = parseInt(numbers[0], 10);
+      return isNaN(num) ? null : num;
     }
+    return null;
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateStep2() || !bookingData) return;
-    
+
     setIsProcessing(true);
     
     try {
-      // Get auth token from context or localStorage
+      const cleanSessionId = parseNumericId(bookingData.sessionId);
+      if (!cleanSessionId || cleanSessionId <= 0) {
+        throw new Error(`Некорректный ID сеанса: "${bookingData.sessionId}"`);
+      }
+
+      const totalAmount = Math.round((bookingData.grandTotal || bookingData.totalPrice) * 100);
+      if (totalAmount <= 0) throw new Error('Сумма заказа некорректна');
+
       const token = localStorage.getItem('auth_token');
+      const paymentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Create booking via API
+      // Формируем тело запроса БЕЗ seat_ids, если на бэкенде нет таблицы связей
+      // И с user_id = 1 (заглушка)
+      const payload = {
+        user_id: 1, 
+        session_id: cleanSessionId,
+        total_amount_cents: totalAmount,
+        payment_id: paymentId,
+        status: "pending"
+      };
+
+      console.log("🚀 Отправка запроса:", payload);
+
       const response = await fetch(`${import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083'}/api/v1/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          session_id: parseInt(bookingData.sessionId),
-          seat_ids: bookingData.seats?.map(s => parseInt(s)) || [],
-          total_amount_cents: Math.round((bookingData.grandTotal || bookingData.totalPrice) * 100),
-        }),
+        body: JSON.stringify(payload),
       });
 
+      // Обработка ответа
+      let responseData;
+      const text = await response.text();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create booking');
+        console.error("❌ Ошибка сервера:", text);
+        // Если текст ошибки пустой или HTML (ошибка прокси/CORS до сервера)
+        if (!text || text.startsWith('<')) {
+           throw new Error("Сервер вернул ошибку соединения или HTML вместо JSON. Проверьте консоль сервера.");
+        }
+        try {
+          const errJson = JSON.parse(text);
+          throw new Error(errJson.error || 'Ошибка сервера');
+        } catch (parseErr) {
+          throw new Error(text || 'Неизвестная ошибка сервера');
+        }
       }
 
-      const result = await response.json();
+      try {
+        responseData = JSON.parse(text);
+      } catch (e) {
+        throw new Error("Сервер вернул некорректный JSON");
+      }
       
       setIsProcessing(false);
       setStep(3);
-      
-      // Clear booking data
       sessionStorage.removeItem('bookingData');
+      toast.success('Бронирование успешно!');
       
-      toast.success('Бронирование успешно подтверждено!');
     } catch (error: any) {
       setIsProcessing(false);
+      console.error("💥 Ошибка в handleSubmit:", error);
       toast.error(error.message || 'Ошибка при создании бронирования');
     }
   };
   
-  if (!bookingData) {
-    return null;
-  }
+  if (!bookingData) return null;
   
   return (
     <div className="min-h-screen pt-28 pb-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           {step < 3 && (
-            <button
-              onClick={() => step === 1 ? navigate(-1) : setStep(1)}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Назад к выбору мест
+            <button onClick={() => step === 1 ? navigate(-1) : setStep(1)} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-4">
+              <ArrowLeft className="w-5 h-5" /> Назад
             </button>
           )}
-          
           <h1 className="text-3xl font-bold mb-2">Оформление заказа</h1>
-          
-          {/* Progress Steps */}
           <div className="flex items-center gap-4 mt-6">
             {[1, 2, 3].map((s) => (
               <div key={s} className="flex items-center gap-2">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${
-                  step >= s 
-                    ? 'bg-purple-500 text-white' 
-                    : 'bg-[#1A1A22] text-gray-500'
-                }`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${step >= s ? 'bg-purple-500 text-white' : 'bg-[#1A1A22] text-gray-500'}`}>
                   {step > s ? <CheckCircle2 className="w-6 h-6" /> : s}
                 </div>
                 <span className={`text-sm ${step >= s ? 'text-white' : 'text-gray-500'}`}>
-                  {s === 1 ? 'Личная информация' : s === 2 ? 'Оплата' : 'Подтверждение'}
+                  {s === 1 ? 'Инфо' : s === 2 ? 'Оплата' : 'Готово'}
                 </span>
                 {s < 3 && <div className="w-12 h-0.5 bg-[#1A1A22]" />}
               </div>
@@ -191,266 +214,89 @@ export default function Checkout() {
         </motion.div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-2"
-          >
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2">
             {step === 1 && (
               <div className="glass-strong rounded-2xl p-6">
                 <h2 className="text-xl font-bold mb-5">Личная информация</h2>
-                
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Полное имя</label>
+                    <label className="block text-sm font-medium mb-2">Имя</label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-purple-500 transition-colors ${
-                          errors.name ? 'border-red-500' : ''
-                        }`}
-                        placeholder="John Doe"
-                      />
+                      <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white rounded-xl focus:outline-none focus:border-purple-500 ${errors.name ? 'border-red-500' : ''}`} placeholder="John Doe" />
                     </div>
                     {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
                   </div>
-                  
                   <div>
                     <label className="block text-sm font-medium mb-2">Email</label>
                     <div className="relative">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-purple-500 transition-colors ${
-                          errors.email ? 'border-red-500' : ''
-                        }`}
-                        placeholder="john@example.com"
-                      />
+                      <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white rounded-xl focus:outline-none focus:border-purple-500 ${errors.email ? 'border-red-500' : ''}`} placeholder="john@example.com" />
                     </div>
                     {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
                   </div>
                 </div>
-                
-                <button
-                  onClick={handleNext}
-                  className="w-full mt-5 py-3 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 text-sm"
-                >
-                  Перейти к оплате
-                </button>
+                <button onClick={handleNext} className="w-full mt-5 py-3 liquid-gradient rounded-xl font-semibold text-sm">Далее</button>
               </div>
             )}
             
             {step === 2 && (
               <form onSubmit={handleSubmit} className="glass-strong rounded-2xl p-6">
-                <h2 className="text-xl font-bold mb-5">Информация об оплате</h2>
-                
+                <h2 className="text-xl font-bold mb-5">Оплата</h2>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Номер карты</label>
+                    <label className="block text-sm font-medium mb-2">Карта</label>
                     <div className="relative">
                       <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={formData.cardNumber}
-                        onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })}
-                        className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-purple-500 transition-colors ${
-                          errors.cardNumber ? 'border-red-500' : ''
-                        }`}
-                        placeholder="1234 5678 9012 3456"
-                        maxLength={19}
-                      />
+                      <input type="text" value={formData.cardNumber} onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })} className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white rounded-xl focus:outline-none focus:border-purple-500 ${errors.cardNumber ? 'border-red-500' : ''}`} placeholder="1234 5678 9012 3456" maxLength={19} />
                     </div>
                     {errors.cardNumber && <p className="text-red-400 text-xs mt-1">{errors.cardNumber}</p>}
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Срок действия</label>
-                      <input
-                        type="text"
-                        value={formData.expiryDate}
-                        onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-                        className={`w-full px-4 py-2.5 glass text-sm text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-purple-500 transition-colors ${
-                          errors.expiryDate ? 'border-red-500' : ''
-                        }`}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                      />
+                      <label className="block text-sm font-medium mb-2">Срок</label>
+                      <input type="text" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} className={`w-full px-4 py-2.5 glass text-sm text-white rounded-xl focus:outline-none focus:border-purple-500 ${errors.expiryDate ? 'border-red-500' : ''}`} placeholder="MM/YY" maxLength={5} />
                       {errors.expiryDate && <p className="text-red-400 text-xs mt-1">{errors.expiryDate}</p>}
                     </div>
-                    
                     <div>
                       <label className="block text-sm font-medium mb-2">CVV</label>
                       <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={formData.cvv}
-                          onChange={(e) => setFormData({ ...formData, cvv: e.target.value })}
-                          className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white placeholder-gray-500 rounded-xl focus:outline-none focus:border-purple-500 transition-colors ${
-                            errors.cvv ? 'border-red-500' : ''
-                          }`}
-                          placeholder="123"
-                          maxLength={3}
-                        />
+                        <input type="text" value={formData.cvv} onChange={(e) => setFormData({ ...formData, cvv: e.target.value })} className={`w-full pl-11 pr-4 py-2.5 glass text-sm text-white rounded-xl focus:outline-none focus:border-purple-500 ${errors.cvv ? 'border-red-500' : ''}`} placeholder="123" maxLength={3} />
                       </div>
                       {errors.cvv && <p className="text-red-400 text-xs mt-1">{errors.cvv}</p>}
                     </div>
                   </div>
                 </div>
-                
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="w-full mt-5 py-3 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  {isProcessing ? 'Обработка...' : 'Завершить бронирование'}
+                <button type="submit" disabled={isProcessing} className="w-full mt-5 py-3 liquid-gradient rounded-xl font-semibold text-sm disabled:opacity-50">
+                  {isProcessing ? 'Обработка...' : 'Оплатить'}
                 </button>
               </form>
             )}
             
             {step === 3 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="glass-strong rounded-2xl p-8 text-center"
-              >
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-strong rounded-2xl p-8 text-center">
                 <div className="w-16 h-16 liquid-gradient rounded-full flex items-center justify-center mx-auto mb-5">
                   <CheckCircle2 className="w-10 h-10 text-white" />
                 </div>
-                
-                <h2 className="text-2xl font-bold mb-2">Бронирование подтверждено!</h2>
-                <p className="text-gray-400 text-sm mb-6">
-                  Ваши билеты отправлены на {formData.email}
-                </p>
-                
-                <div className="glass rounded-xl p-5 mb-6 text-left">
-                  <h3 className="font-bold mb-3 text-sm">Детали бронирования</h3>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Фильм:</span>
-                      <span>{bookingData.movieTitle}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Кинотеатр:</span>
-                      <span>{bookingData.cinemaName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Сеанс:</span>
-                      <span>{bookingData.sessionTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Зал:</span>
-                      <span>{bookingData.hallName}</span>
-                    </div>
-                    {bookingData.bookingType === 'general-admission' && bookingData.tickets ? (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Билеты:</span>
-                        <span>
-                          {bookingData.tickets.adult > 0 && `${bookingData.tickets.adult} Взрослый `}
-                          {bookingData.tickets.child > 0 && `${bookingData.tickets.child} Детский `}
-                          {bookingData.tickets.senior > 0 && `${bookingData.tickets.senior} Пенсионер`}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Места:</span>
-                        <span>{bookingData.seats?.join(', ') || 'N/A'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <button
-                  onClick={() => navigate('/profile')}
-                  className="w-full py-3 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 text-sm"
-                >
-                  На главную
-                </button>
+                <h2 className="text-2xl font-bold mb-2">Успешно!</h2>
+                <p className="text-gray-400 text-sm mb-6">Билеты отправлены на {formData.email}</p>
+                <button onClick={() => navigate('/profile')} className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm">В профиль</button>
               </motion.div>
             )}
           </motion.div>
           
-          {/* Order Summary */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-1"
-          >
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1">
             <div className="sticky top-24 bg-[#1A1A22] rounded-2xl p-6 border border-white/5">
-              <h2 className="text-xl font-bold mb-4">Сводка заказа</h2>
-              
+              <h2 className="text-xl font-bold mb-4">Итого</h2>
               <div className="space-y-4">
                 <div>
-                  <h3 className="font-semibold mb-1">{bookingData.movieTitle}</h3>
-                  <p className="text-sm text-gray-400">
-                    {bookingData.sessionTime} • {bookingData.hallName}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    {bookingData.cinemaName}
-                  </p>
+                  <h3 className="font-semibold">{bookingData.movieTitle}</h3>
+                  <p className="text-sm text-gray-400">{bookingData.sessionTime}</p>
                 </div>
-                
-                {bookingData.bookingType === 'general-admission' && bookingData.tickets ? (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-2">Билеты</p>
-                    <div className="space-y-1.5">
-                      {bookingData.tickets.adult > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-300">{bookingData.tickets.adult}× Взрослый</span>
-                          <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs font-semibold">
-                            {bookingData.tickets.adult}
-                          </span>
-                        </div>
-                      )}
-                      {bookingData.tickets.child > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-300">{bookingData.tickets.child}× Детский</span>
-                          <span className="px-3 py-1 bg-cyan-500/20 text-cyan-400 rounded-full text-xs font-semibold">
-                            {bookingData.tickets.child}
-                          </span>
-                        </div>
-                      )}
-                      {bookingData.tickets.senior > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-300">{bookingData.tickets.senior}× Пенсионер</span>
-                          <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-semibold">
-                            {bookingData.tickets.senior}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : bookingData.seats && bookingData.seats.length > 0 ? (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-2">Места</p>
-                    <div className="flex flex-wrap gap-2">
-                      {bookingData.seats.map((seat) => (
-                        <span key={seat} className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm">
-                          {seat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                
                 <div className="pt-4 border-t border-white/10 space-y-2">
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>Подытог</span>
-                    <span>{formatRub(bookingData.totalPrice)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>Сервисный сбор</span>
-                    <span>{formatRub(SERVICE_FEE)}</span>
-                  </div>
-                  <div className="flex justify-between text-xl font-bold pt-2 border-t border-white/10">
-                    <span>Итого</span>
+                  <div className="flex justify-between text-xl font-bold">
+                    <span>К оплате:</span>
                     <span className="text-purple-400">{formatRub(bookingData.totalPrice + SERVICE_FEE)}</span>
                   </div>
                 </div>
