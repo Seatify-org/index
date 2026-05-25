@@ -1,20 +1,33 @@
 ```
-# Dependencies
-vendor/
+# Database migrations backup
+*.sql.bak
+*.sql~
 
-# Build artifacts
-*.o
-*.obj
-*.a
-*.so
-*.dylib
-*.dll
-*.exe
-*.out
+# Environment and temporary files
+*.tmp
+*.log
 
-# Go specific
-*.mod
-*.sum
-!go.mod
-!go.sum
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Local environment overrides
+.env.local
+
+# Backup and compressed files
+*.bak
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
 ```
