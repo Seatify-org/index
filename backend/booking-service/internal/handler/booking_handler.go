@@ -26,7 +26,9 @@ func NewBookingHandler(bookingService *service.BookingService, logger *zap.Logge
 type CreateBookingRequest struct {
 	UserID      int64   `json:"user_id"`
 	SessionID   int64   `json:"session_id"`
-	TotalAmount float64 `json:"total_amount"`
+	TotalAmount float64 `json:"total_amount_cents"`
+	PaymentID   string  `json:"payment_id"`
+	Status      string  `json:"status"` // Если отправляете статус
 }
 
 // @Summary Create a new booking
@@ -47,7 +49,7 @@ func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	booking, err := h.bookingService.CreateBooking(req.UserID, req.SessionID, req.TotalAmount)
+	booking, err := h.bookingService.CreateBooking(int64(req.UserID), int64(req.UserID), float64(req.TotalAmount), req.PaymentID)
 	if err != nil {
 		if err == service.ErrInvalidBookingData {
 			h.logger.Warn("invalid booking data", zap.Error(err))

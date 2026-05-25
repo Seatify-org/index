@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Seatify-org/seatify-common/logger"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	_ "github.com/seatify/backend/auth-service/docs"
@@ -14,7 +16,6 @@ import (
 	"github.com/seatify/backend/auth-service/internal/handler"
 	"github.com/seatify/backend/auth-service/internal/repository"
 	"github.com/seatify/backend/auth-service/internal/service"
-	"github.com/Seatify-org/seatify-common/logger"
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "github.com/swaggo/swag"
 	"go.uber.org/zap"
@@ -65,8 +66,14 @@ func main() {
 		port = cfg.ServerPort
 	}
 
-	logger.Log.Info("Starting auth service", zap.String("port", port))
-	if err := http.ListenAndServe(":"+port, router); err != nil {
+	corsHandler := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}), // В продакшене замените "*" на адрес фронтенда
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
+	)(router)
+
+	logger.Log.Info("Starting booking service", zap.String("port", port))
+	if err := http.ListenAndServe(":"+port, corsHandler); err != nil {
 		logger.Log.Fatal("Failed to start server", zap.Error(err))
 	}
 }

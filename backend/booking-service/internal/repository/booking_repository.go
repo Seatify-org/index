@@ -27,28 +27,25 @@ func NewPostgresBookingRepository(db *sql.DB) BookingRepository {
 }
 
 func (r *postgresBookingRepository) Create(booking *model.Booking) error {
-	query := `INSERT INTO bookings (user_id, session_id, total_amount_cents, status, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
-	now := time.Now().Format(time.RFC3339)
-	return r.db.QueryRow(query, booking.UserID, booking.SessionID, booking.TotalAmount, booking.Status, now, now).Scan(&booking.ID)
+	query := `INSERT INTO bookings (user_id, session_id, total_amount_cents, status, payment_id, created_at, updated_at) 
+			  VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING id, created_at, updated_at`
+
+	err := r.db.QueryRow(query, booking.UserID, booking.SessionID, booking.TotalAmount, booking.Status, booking.PaymentID).Scan(&booking.ID, &booking.CreatedAt, &booking.UpdatedAt)
+	return err
 }
 
 func (r *postgresBookingRepository) GetByID(id int64) (*model.Booking, error) {
-	query := `SELECT id, user_id, session_id, total_amount_cents, status, created_at, updated_at, cancelled_at FROM bookings WHERE id = $1`
+	query := `SELECT id, user_id, session_id, total_amount, status, payment_id, created_at, updated_at FROM bookings WHERE id = $1`
 	booking := &model.Booking{}
-	var cancelledAt sql.NullTime
-	err := r.db.QueryRow(query, id).Scan(&booking.ID, &booking.UserID, &booking.SessionID, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt, &cancelledAt)
+	err := r.db.QueryRow(query, id).Scan(&booking.ID, &booking.UserID, &booking.SessionID, &booking.TotalAmount, &booking.Status, &booking.PaymentID, &booking.CreatedAt, &booking.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrBookingNotFound
-	}
-	if cancelledAt.Valid {
-		booking.CancelledAt = &cancelledAt.Time
 	}
 	return booking, err
 }
 
 func (r *postgresBookingRepository) GetByUserID(userID int64) ([]*model.Booking, error) {
-	query := `SELECT id, user_id, session_id, total_amount_cents, status, created_at, updated_at, cancelled_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, session_id, total_amount, status, payment_id, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.Query(query, userID)
 	if err != nil {
 		return nil, err
@@ -58,13 +55,9 @@ func (r *postgresBookingRepository) GetByUserID(userID int64) ([]*model.Booking,
 	var bookings []*model.Booking
 	for rows.Next() {
 		booking := &model.Booking{}
-		var cancelledAt sql.NullTime
-		err := rows.Scan(&booking.ID, &booking.UserID, &booking.SessionID, &booking.TotalAmount, &booking.Status, &booking.CreatedAt, &booking.UpdatedAt, &cancelledAt)
+		err := rows.Scan(&booking.ID, &booking.UserID, &booking.SessionID, &booking.TotalAmount, &booking.Status, &booking.PaymentID, &booking.CreatedAt, &booking.UpdatedAt)
 		if err != nil {
 			return nil, err
-		}
-		if cancelledAt.Valid {
-			booking.CancelledAt = &cancelledAt.Time
 		}
 		bookings = append(bookings, booking)
 	}
@@ -72,9 +65,9 @@ func (r *postgresBookingRepository) GetByUserID(userID int64) ([]*model.Booking,
 }
 
 func (r *postgresBookingRepository) UpdateStatus(id int64, status string) error {
-	query := `UPDATE bookings SET status = $1, updated_at = $2, cancelled_at = CASE WHEN $1 = 'cancelled' THEN $3 ELSE NULL END WHERE id = $4`
+	query := `UPDATE bookings SET status = $1, updated_at = $2 WHERE id = $3`
 	now := time.Now().Format(time.RFC3339)
-	result, err := r.db.Exec(query, status, now, now, id)
+	result, err := r.db.Exec(query, status, now, id)
 	if err != nil {
 		return err
 	}

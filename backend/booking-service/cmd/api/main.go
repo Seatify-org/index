@@ -16,15 +16,9 @@ import (
 	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
 	httpSwagger "github.com/swaggo/http-swagger"
-	_ "github.com/swaggo/swag"
 	"go.uber.org/zap"
 )
 
-// @title Seatify Booking Service API
-// @version 1.0
-// @description Booking and ticket management microservice for Seatify cinema booking platform
-// @host localhost:8082
-// @BasePath /
 func main() {
 	cfg := config.LoadBookingConfig()
 
@@ -48,18 +42,35 @@ func main() {
 	logger.Log.Info("Connected to database successfully")
 
 	bookingRepo := repository.NewPostgresBookingRepository(db)
-	bookingService := service.NewBookingService(bookingRepo)
+	bookingService := service.NewBookingService(bookingRepo, logger.Log)
 	bookingHandler := handler.NewBookingHandler(bookingService, logger.Log)
 
 	router := mux.NewRouter()
 
 	api := router.PathPrefix("/api/v1").Subrouter()
-	api.HandleFunc("/bookings", bookingHandler.CreateBooking).Methods("POST")
-	api.HandleFunc("/bookings/{id}", bookingHandler.GetBooking).Methods("GET")
-	api.HandleFunc("/bookings/user", bookingHandler.GetUserBookings).Methods("GET")
-	api.HandleFunc("/bookings/{id}/cancel", bookingHandler.CancelBooking).Methods("POST")
+	api.HandleFunc("/bookings", bookingHandler.CreateBooking).Methods("POST", "OPTIONS")
+	api.HandleFunc("/bookings/{id}", bookingHandler.GetBooking).Methods("GET", "OPTIONS")
+	api.HandleFunc("/bookings/user", bookingHandler.GetUserBookings).Methods("GET", "OPTIONS")
+	api.HandleFunc("/bookings/{id}/cancel", bookingHandler.CancelBooking).Methods("POST", "OPTIONS")
 
 	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
+
+	// CORS Middleware - должен быть самым внешним слоем
+	corsMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -67,7 +78,9 @@ func main() {
 	}
 
 	logger.Log.Info("Starting booking service", zap.String("port", port))
-	if err := http.ListenAndServe(":"+port, router); err != nil {
+
+	// Оборачиваем весь роутер в CORS
+	if err := http.ListenAndServe(":"+port, corsMiddleware(router)); err != nil {
 		logger.Log.Fatal("Failed to start server", zap.Error(err))
 	}
 }
