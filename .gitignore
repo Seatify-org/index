@@ -2,47 +2,19 @@
 # Dependencies
 vendor/
 
-# Binaries
-*.exe
-*.dll
-*.so
-*.a
+# Build artifacts
 *.o
 *.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
 *.out
 
-# Go-specific
+# Go specific
 *.mod
 *.sum
 !go.mod
 !go.sum
-
-# Logs and temp files
-*.log
-*.tmp
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Build artifacts
-dist/
-build/
-target/
 ```
