@@ -1,6 +1,6 @@
 module github.com/seatify/backend/booking-service
 
-go 1.19
+go 1.26.3
 
 require (
 	github.com/Seatify-org/seatify-common v1.0.1
