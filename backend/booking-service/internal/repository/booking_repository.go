@@ -35,7 +35,7 @@ func (r *postgresBookingRepository) Create(booking *model.Booking) error {
 }
 
 func (r *postgresBookingRepository) GetByID(id int64) (*model.Booking, error) {
-	query := `SELECT id, user_id, session_id, total_amount, status, payment_id, created_at, updated_at FROM bookings WHERE id = $1`
+	query := `SELECT id, user_id, session_id, total_amount_cents, status, payment_id, created_at, updated_at FROM bookings WHERE id = $1`
 	booking := &model.Booking{}
 	err := r.db.QueryRow(query, id).Scan(&booking.ID, &booking.UserID, &booking.SessionID, &booking.TotalAmount, &booking.Status, &booking.PaymentID, &booking.CreatedAt, &booking.UpdatedAt)
 	if err == sql.ErrNoRows {
@@ -45,7 +45,7 @@ func (r *postgresBookingRepository) GetByID(id int64) (*model.Booking, error) {
 }
 
 func (r *postgresBookingRepository) GetByUserID(userID int64) ([]*model.Booking, error) {
-	query := `SELECT id, user_id, session_id, total_amount, status, payment_id, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, session_id, total_amount_cents, status, payment_id, created_at, updated_at FROM bookings WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.Query(query, userID)
 	if err != nil {
 		return nil, err
