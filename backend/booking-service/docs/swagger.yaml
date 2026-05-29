@@ -1,0 +1,1100 @@
+basePath: /
+definitions:
+  internal_handler.createBookingRequest:
+    properties:
+      payment_id:
+        type: string
+      session_id:
+        type: integer
+      total_amount_cents:
+        type: integer
+    type: object
+  internal_handler.createCinemaRequest:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+      name:
+        type: string
+      phone:
+        type: string
+      rating:
+        type: number
+    type: object
+  internal_handler.createHallRequest:
+    properties:
+      cinema_id:
+        example: 1
+        type: integer
+      name:
+        example: VIP Hall 1
+        type: string
+      rows:
+        example: 10
+        type: integer
+      seats_per_row:
+        example: 10
+        type: integer
+    type: object
+  internal_handler.createMovieRequest:
+    properties:
+      banner_url:
+        example: https://example.com/banner.jpg
+        type: string
+      description:
+        example: Epic sci-fi film
+        type: string
+      duration_minutes:
+        example: 166
+        type: integer
+      poster_url:
+        example: https://example.com/poster.jpg
+        type: string
+      rating:
+        example: 8.7
+        type: number
+      release_date:
+        example: "2024-03-01T00:00:00Z"
+        type: string
+      title:
+        example: 'Dune: Part Two'
+        type: string
+      trailer_url:
+        example: https://example.com/trailer.mp4
+        type: string
+    type: object
+  internal_handler.createSessionRequest:
+    properties:
+      base_price_cents:
+        example: 1200
+        type: integer
+      hall_id:
+        example: 1
+        type: integer
+      movie_id:
+        example: 1
+        type: integer
+      start_time:
+        example: "2026-05-29T18:00:00Z"
+        type: string
+    type: object
+  internal_handler.sessionResponse:
+    properties:
+      base_price_cents:
+        type: integer
+      hall_id:
+        type: integer
+      id:
+        type: integer
+      movie_id:
+        type: integer
+      start_time:
+        type: string
+    type: object
+  internal_handler.updateCinemaRequest:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+      name:
+        type: string
+      phone:
+        type: string
+      rating:
+        type: number
+    type: object
+  internal_handler.updateMovieRequest:
+    properties:
+      banner_url:
+        example: https://example.com/banner.jpg
+        type: string
+      description:
+        example: Epic sci-fi film
+        type: string
+      duration_minutes:
+        example: 166
+        type: integer
+      poster_url:
+        example: https://example.com/poster.jpg
+        type: string
+      rating:
+        example: 8.7
+        type: number
+      release_date:
+        example: "2024-03-01T00:00:00Z"
+        type: string
+      title:
+        example: 'Dune: Part Two'
+        type: string
+      trailer_url:
+        example: https://example.com/trailer.mp4
+        type: string
+    type: object
+  internal_handler.updateSessionRequest:
+    properties:
+      base_price_cents:
+        example: 1200
+        type: integer
+      hall_id:
+        example: 1
+        type: integer
+      movie_id:
+        example: 1
+        type: integer
+      start_time:
+        example: "2026-05-29T18:00:00Z"
+        type: string
+    type: object
+  model.Booking:
+    properties:
+      cancelled_at:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      payment_id:
+        type: string
+      session_id:
+        type: integer
+      status:
+        type: string
+      total_amount_cents:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.Cinema:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      integration_level:
+        type: integer
+      latitude:
+        type: number
+      longitude:
+        type: number
+      name:
+        type: string
+      phone_number:
+        type: string
+      rating:
+        type: number
+    type: object
+  model.Hall:
+    properties:
+      cinema_id:
+        type: integer
+      created_at:
+        type: string
+      hall_type:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      rows_count:
+        type: integer
+      seats_per_row:
+        type: integer
+      total_seats:
+        type: integer
+    type: object
+  model.Movie:
+    properties:
+      banner_url:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      duration_minutes:
+        type: integer
+      id:
+        type: integer
+      poster_url:
+        type: string
+      rating:
+        type: number
+      release_date:
+        type: string
+      title:
+        type: string
+      trailer_url:
+        type: string
+    type: object
+  model.Session:
+    properties:
+      available_seats:
+        type: integer
+      base_price_cents:
+        type: integer
+      cinema_address:
+        type: string
+      cinema_city:
+        type: string
+      cinema_id:
+        type: integer
+      cinema_name:
+        type: string
+      created_at:
+        type: string
+      end_time:
+        type: string
+      hall_id:
+        type: integer
+      hall_name:
+        type: string
+      id:
+        type: integer
+      movie_id:
+        type: integer
+      movie_title:
+        type: string
+      start_time:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API for movie sessions and bookings
+  title: Booking Service API
+  version: "1.0"
+paths:
+  /admin/cinemas:
+    get:
+      description: Returns all cinemas
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Cinema'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get cinemas
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a new cinema
+      parameters:
+      - description: Cinema payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createCinemaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Cinema'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create cinema
+      tags:
+      - admin
+  /admin/cinemas/{cinemaId}/halls:
+    get:
+      description: Returns all halls for cinema
+      parameters:
+      - description: Cinema ID
+        in: path
+        name: cinemaId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Hall'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get halls by cinema
+      tags:
+      - admin
+  /admin/cinemas/{id}:
+    delete:
+      description: Deletes cinema by ID
+      parameters:
+      - description: Cinema ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete cinema
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Updates cinema by ID
+      parameters:
+      - description: Cinema ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Cinema payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateCinemaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Cinema'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update cinema
+      tags:
+      - admin
+  /admin/halls:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new hall
+      parameters:
+      - description: Hall payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createHallRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Hall'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create hall
+      tags:
+      - admin
+  /admin/movies:
+    get:
+      description: Returns all movies for admin management
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Movie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get admin movies
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a new movie
+      parameters:
+      - description: Movie payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createMovieRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Movie'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create movie
+      tags:
+      - admin
+  /admin/movies/{id}:
+    delete:
+      description: Deletes movie by ID
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete movie
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Updates movie by ID
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Movie payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateMovieRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Movie'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update movie
+      tags:
+      - admin
+  /admin/sessions:
+    get:
+      description: Returns all sessions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.sessionResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get sessions
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a new session
+      parameters:
+      - description: Session payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_handler.sessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create session
+      tags:
+      - admin
+  /admin/sessions/{id}:
+    delete:
+      description: Deletes session by ID
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete session
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Updates session by ID
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Session payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.sessionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update session
+      tags:
+      - admin
+  /bookings:
+    post:
+      consumes:
+      - application/json
+      description: Create a new booking for the authenticated user
+      parameters:
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Booking request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createBookingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Booking'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create booking
+      tags:
+      - bookings
+  /bookings/{id}:
+    get:
+      description: Returns booking by booking ID
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Booking'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get booking by ID
+      tags:
+      - bookings
+  /bookings/{id}/cancel:
+    patch:
+      description: Cancels booking by ID
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Cancel booking
+      tags:
+      - bookings
+  /bookings/{id}/confirm:
+    patch:
+      description: Confirms booking by ID
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Confirm booking
+      tags:
+      - bookings
+  /bookings/me:
+    get:
+      description: Returns all bookings for authenticated user
+      parameters:
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Booking'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get my bookings
+      tags:
+      - bookings
+  /movies:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Movie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get all movies
+      tags:
+      - movies
+  /movies/{id}:
+    get:
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Movie'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get movie by ID
+      tags:
+      - movies
+  /movies/{id}/sessions:
+    get:
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Session'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get sessions by movie ID
+      tags:
+      - movies
+  /sessions/{id}:
+    get:
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Session'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get session by ID
+      tags:
+      - movies
+swagger: "2.0"
