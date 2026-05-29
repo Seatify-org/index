@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.9"
 
 services:
   postgres:
@@ -7,56 +7,98 @@ services:
     environment:
       POSTGRES_USER: seatify
       POSTGRES_PASSWORD: seatify_password
-      POSTGRES_DB: seatify
+      POSTGRES_DB: postgres
+      POSTGRES_MULTIPLE_DATABASES: auth_service,booking_service
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/01-init-multiple-dbs.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U seatify"]
+      test: ["CMD-SHELL", "pg_isready -U seatify -d postgres"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  booking-service:
-    build:
-      context: ./booking-service
-      dockerfile: Dockerfile
-    container_name: seatify_booking_service
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: seatify
-      DB_PASSWORD: seatify_password
-      DB_NAME: seatify
-      SERVER_PORT: 8082
-      LOG_LEVEL: debug
-    ports:
-      - "8082:8082"
+  auth-migrate:
+    image: migrate/migrate
+    container_name: seatify_auth_migrate
     depends_on:
       postgres:
         condition: service_healthy
-    restart: unless-stopped
+    volumes:
+      - ./auth-service/migrations:/migrations:ro
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://seatify:seatify_password@postgres:5432/auth_service?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  booking-migrate:
+    image: migrate/migrate
+    container_name: seatify_booking_migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./booking-service/migrations:/migrations:ro
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://seatify:seatify_password@postgres:5432/booking_service?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
 
   auth-service:
     build:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: seatify_auth_service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-migrate:
+        condition: service_completed_successfully
     environment:
+      APP_ENV: docker
+      PORT: 8081
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: seatify
       DB_PASSWORD: seatify_password
-      DB_NAME: seatify
-      SERVER_PORT: 8081
-      LOG_LEVEL: debug
+      DB_NAME: auth_service
+      DB_SSLMODE: disable
       JWT_SECRET: your-secret-key-change-in-production
+      JWT_ACCESS_TOKEN_TTL_MIN: 15
+      JWT_REFRESH_TOKEN_TTL_HR: 168
     ports:
       - "8081:8081"
+    restart: unless-stopped
+
+  booking-service:
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    container_name: seatify_booking_service
     depends_on:
       postgres:
         condition: service_healthy
+      booking-migrate:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: docker
+      PORT: 8082
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: seatify
+      DB_PASSWORD: seatify_password
+      DB_NAME: booking_service
+      DB_SSLMODE: disable
+    ports:
+      - "8082:8082"
     restart: unless-stopped
 
 volumes:
