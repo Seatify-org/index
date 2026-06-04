@@ -28,7 +28,7 @@ func NewPostgresBookingRepository(db *sql.DB) BookingRepository {
 
 func (r *postgresBookingRepository) Create(booking *model.Booking) error {
 	query := `
-		INSERT INTO bookings (
+		INSERT INTO session (
 			user_id, session_id, total_amount_cents, payment_id, status, created_at, updated_at
 		)
 		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
