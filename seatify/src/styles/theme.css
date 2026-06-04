@@ -124,16 +124,19 @@
     @apply border-border outline-ring/50;
   }
 
+  html, body {
+    min-height: 100vh;
+  }
+
   body {
     position: relative;
     overflow-x: hidden;
-    /* Default Dark Theme */
-    background: #05050A;
+    background: #0a0a0f;
     color: #ffffff;
     transition: background 0.5s ease, color 0.5s ease;
   }
   
-  /* Dark Theme Liquid Glassmorphism Background (Default) */
+  /* Dark Theme Liquid Glassmorphism Background */
   body::before {
     content: '';
     position: fixed;
@@ -153,15 +156,31 @@
     transition: all 0.5s ease;
   }
   
-  /* Light Theme Background Variant */
-  body.light-theme,
-  .light-theme body {
-    background: linear-gradient(135deg, #F5F5F7 0%, #E8E8ED 100%) !important;
-    color: #0F172A;
-  }
-  
-  .light-theme,
+  /* ===== LIGHT THEME ===== */
+  /* Класс .light-theme может быть на <html> или на <body> — обрабатываем оба случая */
+  html.light-theme body,
   body.light-theme {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf5 100%) !important;
+    color: #1a1a2e !important;
+  }
+
+  html.light-theme body::before,
+  body.light-theme::before {
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(124, 92, 255, 0.12) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 40% 80%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+      radial-gradient(circle at 90% 20%, rgba(168, 85, 247, 0.08) 0%, transparent 50%) !important;
+    opacity: 0.7;
+  }
+
+  /* Убираем затемнение главной страницы в светлой теме */
+  .light-theme .bg-\[\#05050acc\],
+    html.light-theme .bg-\[\#05050acc\] {
+    background: transparent !important;
+}
+  
+  .light-theme {
     --background: #FFFFFF;
     --foreground: #0F172A;
     --card: #FFFFFF;
@@ -185,23 +204,12 @@
     --ring: #7C5CFF;
   }
   
-  .light-theme::before,
-  body.light-theme::before {
-    background: 
-      radial-gradient(circle at 20% 30%, rgba(124, 92, 255, 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.06) 0%, transparent 50%),
-      radial-gradient(circle at 40% 80%, rgba(6, 182, 212, 0.04) 0%, transparent 50%),
-      radial-gradient(circle at 90% 20%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
-      radial-gradient(circle at 10% 90%, rgba(219, 39, 119, 0.04) 0%, transparent 50%);
-    opacity: 0.5;
-  }
-  
   /* Light Theme Text Colors */
   .light-theme h1,
   .light-theme h2,
   .light-theme h3,
   .light-theme h4 {
-    color: #0F172A;
+    color: #0F172A !important;
   }
   
   .light-theme .text-white {
@@ -213,15 +221,23 @@
   }
   
   .light-theme .text-gray-300 {
-    color: #94A3B8 !important;
+    color: #475569 !important;
   }
   
   .light-theme .text-gray-500 {
     color: #64748B !important;
   }
   
+  .light-theme .text-gray-600 {
+    color: #475569 !important;
+  }
+  
   .light-theme .text-purple-300 {
     color: #7c5cff !important;
+  }
+  
+  .light-theme .text-purple-400 {
+    color: #6d5cff !important;
   }
   
   /* Light Theme Hover States */
@@ -234,7 +250,8 @@
     color: #0F172A !important;
   }
   
-  .light-theme .hover\:text-purple-300:hover {
+  .light-theme .hover\:text-purple-300:hover,
+  .light-theme .hover\:text-purple-400:hover {
     color: #7c5cff !important;
   }
   
@@ -255,18 +272,13 @@
   
   /* Hide Scrollbar Utility */
   .scrollbar-hide {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   
   .scrollbar-hide::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
   }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
 
   html {
     font-size: var(--font-size);
@@ -328,7 +340,6 @@
     transition: all 0.3s ease;
   }
   
-  /* Light Theme Glass */
   .light-theme .glass {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(20px);
@@ -351,7 +362,6 @@
     transition: all 0.3s ease;
   }
   
-  /* Light Theme Glass Strong */
   .light-theme .glass-strong {
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(30px);
@@ -377,7 +387,6 @@
     transform: translateY(-2px) scale(1.02);
   }
   
-  /* Light Theme Glass Hover */
   .light-theme .glass-hover:hover {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(124, 92, 255, 0.3);
@@ -399,7 +408,6 @@
     color: white;
   }
   
-  /* Light Theme Liquid Gradient - Solid, not transparent */
   .light-theme .liquid-gradient {
     background: linear-gradient(135deg, 
       rgb(124, 92, 255) 0%, 
@@ -419,7 +427,6 @@
     border: 1px solid rgba(124, 92, 255, 0.3);
   }
   
-  /* Light Theme Liquid Gradient Subtle */
   .light-theme .liquid-gradient-subtle {
     background: linear-gradient(135deg, 
       rgba(124, 92, 255, 0.12) 0%, 
@@ -428,7 +435,6 @@
     border: 1px solid rgba(124, 92, 255, 0.2);
   }
   
-  /* Organic Glow Effects */
   .glow-purple {
     box-shadow: 0 0 40px rgba(124, 92, 255, 0.6);
   }
@@ -441,7 +447,6 @@
     box-shadow: 0 0 40px rgba(6, 182, 212, 0.6);
   }
   
-  /* Pressed Glass Effect */
   .glass-pressed {
     background: rgba(0, 0, 0, 0.3);
     box-shadow: 
@@ -450,7 +455,6 @@
     transform: translateY(1px);
   }
   
-  /* Slick Carousel Customization for Dark Theme */
   .cinema-carousel .slick-prev,
   .cinema-carousel .slick-next {
     width: 40px;
@@ -483,7 +487,6 @@
     opacity: 0.25;
   }
   
-  /* Light theme carousel arrows */
   .light-theme .cinema-carousel .slick-prev:before,
   .light-theme .cinema-carousel .slick-next:before {
     color: rgba(124, 92, 255, 0.6);
@@ -494,7 +497,6 @@
     color: rgba(124, 92, 255, 1);
   }
   
-  /* Custom Scrollbar - Beautiful Glassmorphism Style */
   .custom-scrollbar::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -535,7 +537,6 @@
     );
   }
   
-  /* Light theme custom scrollbar */
   .light-theme .custom-scrollbar::-webkit-scrollbar-track {
     background: rgba(124, 92, 255, 0.05);
   }
