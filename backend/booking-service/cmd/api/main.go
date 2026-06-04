@@ -23,10 +23,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// @title Booking Service API
-// @version 1.0
-// @description API for movie sessions and bookings
-// @BasePath /
 func main() {
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -45,7 +41,6 @@ func main() {
 	router.Use(loggingMiddleware(logger))
 
 	router.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
-
 	router.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
 	adminRepo := repository.NewPostgresAdminRepository(db)
@@ -76,8 +71,6 @@ func main() {
 	adminMiddleware := middleware.RequireRole("admin")
 
 	admin := router.PathPrefix("/admin").Subrouter()
-	admin.Use(jwtMiddleware)
-	admin.Use(adminMiddleware)
 
 	admin.HandleFunc("/movies", adminHandler.GetMovies).Methods(http.MethodGet)
 	admin.HandleFunc("/movies", adminHandler.CreateMovie).Methods(http.MethodPost)
@@ -96,6 +89,18 @@ func main() {
 	admin.HandleFunc("/sessions", adminHandler.CreateSession).Methods(http.MethodPost)
 	admin.HandleFunc("/sessions/{id:[0-9]+}", adminHandler.UpdateSession).Methods(http.MethodPut)
 	admin.HandleFunc("/sessions/{id:[0-9]+}", adminHandler.DeleteSession).Methods(http.MethodDelete)
+
+	admin.HandleFunc("/movies", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/movies/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/cinemas", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/cinemas/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/cinemas/{cinemaId:[0-9]+}/halls", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/halls", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/sessions", optionsHandler).Methods(http.MethodOptions)
+	admin.HandleFunc("/sessions/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+
+	admin.Use(jwtMiddleware)
+	admin.Use(adminMiddleware)
 
 	port := getEnv("PORT", "8082")
 
@@ -119,6 +124,10 @@ func main() {
 	}()
 
 	waitForShutdown(logger, srv)
+}
+
+func optionsHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func initDB() (*sql.DB, error) {
@@ -178,9 +187,7 @@ func loggingMiddleware(logger *zap.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-
 			next.ServeHTTP(w, r)
-
 			logger.Info("http request",
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
