@@ -29,8 +29,6 @@ import {
 } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 
-// ─── Constants & Helpers ──────────────────────────────────────────────────────
-
 const TODAY = new Date().toISOString().split("T")[0];
 
 const SHORT_DATE = (d: string) =>
@@ -39,8 +37,6 @@ const SHORT_DATE = (d: string) =>
 const PRICE_STEPS = [99,149,199,249,299,349,399,449,499,549,599,649,699,749,799,849,899,949,999,1099,1199,1299,1399,1499];
 const snapPrice = (n: number) =>
   PRICE_STEPS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
-
-// ─── Extended Types for Frontend ──────────────────────────────────────────────
 
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
@@ -59,8 +55,6 @@ interface ExtendedCinema extends ApiCinema {
   totalHalls: number;
   facilities: string[];
 }
-
-// ─── Root Component ───────────────────────────────────────────────────────────
 
 type Tab = "movies" | "sessions" | "cinemas";
 
@@ -85,7 +79,6 @@ export default function Admin() {
     const loadData = async () => {
       setDataLoading(true);
       try {
-        // 1. Load Movies
         const apiMovies = await fetchMovies();
         const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
           ...m,
@@ -96,7 +89,6 @@ export default function Admin() {
         }));
         setMoviesList(extendedMovies);
 
-        // 2. Load Sessions for all movies
         const allSessionsPromises = apiMovies.map(m => fetchSessionsByMovie(m.id));
         const sessionsArrays = await Promise.all(allSessionsPromises);
         
@@ -108,7 +100,6 @@ export default function Admin() {
         }));
         setSessionsList(flatSessions);
 
-        // 3. Load Cinemas directly from API
         const apiCinemas = await fetchCinemas();
         const extendedCinemas: ExtendedCinema[] = apiCinemas.map(c => ({
           ...c,
@@ -128,12 +119,10 @@ export default function Admin() {
     loadData();
   }, [user]);
 
-  // Load halls for all cinemas
   useEffect(() => {
     const loadHalls = async () => {
       const newMap: Record<number, { id: number; name: string }[]> = {};
       
-      // First, extract from sessions
       sessionsList.forEach((s) => {
         if (!newMap[s.cinema_id]) newMap[s.cinema_id] = [];
         if (!newMap[s.cinema_id].find((h) => h.id === s.hall_id)) {
@@ -141,7 +130,6 @@ export default function Admin() {
         }
       });
       
-      // Then load from API for all cinemas
       for (const cinema of cinemasList) {
         const halls = await fetchHallsByCinema(cinema.id);
         if (!newMap[cinema.id]) newMap[cinema.id] = [];
@@ -170,10 +158,10 @@ export default function Admin() {
     [todaySessions]
   );
 
-  const TABS: { id: Tab; label: string; Icon: React.FC<any> }[] = [
-    { id: "movies", label: "Фильмы", Icon: Film },
-    { id: "sessions", label: "Сеансы", Icon: Clock },
-    { id: "cinemas", label: "Кинотеатры", Icon: Building2 },
+  const TABS: { id: Tab; label: string; shortLabel: string; Icon: React.FC<any> }[] = [
+    { id: "movies", label: "Фильмы", shortLabel: "Фильмы", Icon: Film },
+    { id: "sessions", label: "Сеансы", shortLabel: "Сеансы", Icon: Clock },
+    { id: "cinemas", label: "Кинотеатры", shortLabel: "Кино", Icon: Building2 },
   ];
 
   if (isLoading || dataLoading) {
@@ -181,51 +169,58 @@ export default function Admin() {
       <div className="min-h-screen pt-24 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
-          <p className="text-gray-400">Загрузка админ-панели...</p>
+          <p className="text-gray-400 text-sm md:text-base">Загрузка админ-панели...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pt-16">
-      <div className="sticky top-16 z-40 glass border-b border-white/10 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-[52px] flex items-center justify-between gap-4">
-          <span className="text-sm text-gray-400 hidden sm:block font-medium">Seatify Admin</span>
-          <nav className="flex gap-1 bg-black/40 p-1 rounded-xl border border-white/8">
-            {TABS.map(({ id, label, Icon }) => (
+    <div className="min-h-screen pt-14 md:pt-16">
+      <div className="sticky top-14 md:top-16 z-40 glass border-b border-white/10 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-3 md:px-6 h-12 md:h-[52px] flex items-center justify-between gap-2 md:gap-4">
+          <span className="text-xs md:text-sm text-gray-400 hidden md:block font-medium">Seatify Admin</span>
+          <nav className="flex gap-0.5 md:gap-1 bg-black/40 p-0.5 md:p-1 rounded-lg md:rounded-xl border border-white/8 flex-1 md:flex-none">
+            {TABS.map(({ id, label, shortLabel, Icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-4 py-1.5 md:py-1.5 rounded-md md:rounded-lg text-xs md:text-sm font-medium transition-all flex-1 md:flex-none justify-center ${
                   tab === id
                     ? "liquid-gradient text-white"
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Icon size={14} />
-                <span>{label}</span>
+                <Icon size={12} className="md:hidden" />
+                <Icon size={14} className="hidden md:block" />
+                <span className="hidden sm:inline">{label}</span>
+                <span className="sm:hidden">{shortLabel}</span>
               </button>
             ))}
           </nav>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-8">
+        {/* Stats Grid - 2x2 на мобильных */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-8">
           {[
-            { icon: <Film size={18} className="text-purple-400" />, label: "Фильмов", value: String(moviesList.length) },
-            { icon: <Clock size={18} className="text-emerald-400" />, label: "Сеансов сегодня", value: String(todaySessions.length) },
-            { icon: <Building2 size={18} className="text-cyan-400" />, label: "Кинотеатров", value: String(cinemasList.length) },
-            { icon: <Ticket size={18} className="text-yellow-400" />, label: "Выручка сегодня", value: formatRub(todayRevenue) },
+            { icon: <Film size={16} className="md:hidden text-purple-400" />, iconMd: <Film size={18} className="hidden md:block text-purple-400" />, label: "Фильмов", shortLabel: "Фильмов", value: String(moviesList.length) },
+            { icon: <Clock size={16} className="md:hidden text-emerald-400" />, iconMd: <Clock size={18} className="hidden md:block text-emerald-400" />, label: "Сеансов сегодня", shortLabel: "Сеансов", value: String(todaySessions.length) },
+            { icon: <Building2 size={16} className="md:hidden text-cyan-400" />, iconMd: <Building2 size={18} className="hidden md:block text-cyan-400" />, label: "Кинотеатров", shortLabel: "Кинотеатров", value: String(cinemasList.length) },
+            { icon: <Ticket size={16} className="md:hidden text-yellow-400" />, iconMd: <Ticket size={18} className="hidden md:block text-yellow-400" />, label: "Выручка сегодня", shortLabel: "Выручка", value: formatRub(todayRevenue) },
           ].map((s) => (
-            <div key={s.label} className="glass-strong rounded-2xl p-4 flex items-center gap-3">
-              <div className="w-9 h-9 liquid-gradient-subtle rounded-xl flex items-center justify-center shrink-0">
-                {s.icon}
+            <div key={s.label} className="glass-strong rounded-xl md:rounded-2xl p-2.5 md:p-4 flex items-center gap-2 md:gap-3">
+              <div className="w-8 h-8 md:w-9 md:h-9 liquid-gradient-subtle rounded-lg md:rounded-xl flex items-center justify-center shrink-0">
+                <span className="md:hidden">{s.icon}</span>
+                <span className="hidden md:block">{s.iconMd}</span>
               </div>
-              <div>
-                <div className="text-[11px] text-gray-500 leading-none mb-0.5 uppercase tracking-wider">{s.label}</div>
-                <div className="text-xl font-bold leading-tight">{s.value}</div>
+              <div className="min-w-0">
+                <div className="text-[9px] md:text-[11px] text-gray-500 leading-none mb-0.5 uppercase tracking-wider">
+                  <span className="hidden md:inline">{s.label}</span>
+                  <span className="md:hidden">{s.shortLabel}</span>
+                </div>
+                <div className="text-sm md:text-xl font-bold leading-tight truncate">{s.value}</div>
               </div>
             </div>
           ))}
@@ -310,7 +305,6 @@ function MoviesTab({
     try {
       const { id, ...cleanData } = data;
       
-      // Формируем payload с genre/cast/director
       const moviePayload = {
         ...cleanData,
         genre: Array.isArray(data.genre) ? data.genre : [],
@@ -345,35 +339,35 @@ function MoviesTab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 gap-4">
-        <div className="relative">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 md:mb-5 gap-3">
+        <div className="relative flex-1 sm:flex-none">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по названию или режиссёру…"
-            className="bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 w-72 text-white"
+            className="bg-black/40 border border-white/10 rounded-lg md:rounded-xl pl-9 pr-4 py-2 md:py-2 text-sm focus:outline-none focus:border-purple-500/50 w-full sm:w-72 text-white"
           />
         </div>
         <button
           onClick={() => setPanelMovie("new")}
-          className="flex items-center gap-2 px-5 py-2 liquid-gradient rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 shrink-0"
+          className="flex items-center justify-center gap-2 px-4 md:px-5 py-2 md:py-2 liquid-gradient rounded-lg md:rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 active:scale-98"
         >
           <Plus size={15} /> Добавить фильм
         </button>
       </div>
 
-      <div className="glass-strong rounded-2xl overflow-hidden">
+      <div className="glass-strong rounded-xl md:rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px]">
+          <table className="w-full min-w-[600px] md:min-w-[680px]">
             <thead>
               <tr className="border-b border-white/8 bg-black/30">
                 {["Фильм", "Жанры", "Длит.", "Рейтинг", "Выход", ""].map((h, i) => (
                   <th
                     key={i}
-                    className={`px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                      i === 5 ? "text-right w-24" : "text-left"
-                    } ${i === 2 ? "w-20" : ""} ${i === 3 ? "w-20" : ""} ${i === 4 ? "w-28" : ""}`}
+                    className={`px-3 md:px-5 py-2.5 md:py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                      i === 5 ? "text-right w-16 md:w-24" : "text-left"
+                    } ${i === 2 ? "w-16 md:w-20" : ""} ${i === 3 ? "w-16 md:w-20" : ""} ${i === 4 ? "w-20 md:w-28" : ""}`}
                   >
                     {h}
                   </th>
@@ -383,57 +377,60 @@ function MoviesTab({
             <tbody className="divide-y divide-white/5">
               {filtered.map((movie) => (
                 <tr key={movie.id} className="group hover:bg-white/[0.025] transition-colors">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
+                  <td className="px-3 md:px-5 py-2.5 md:py-3">
+                    <div className="flex items-center gap-2 md:gap-3">
                       <img
                         src={movie.poster_url}
                         alt={movie.title}
-                        className="w-9 h-[52px] rounded-lg object-cover border border-white/10 shrink-0 bg-white/5"
+                        className="w-8 h-11 md:w-9 md:h-[52px] rounded-lg object-cover border border-white/10 shrink-0 bg-white/5"
                       />
-                      <div>
-                        <div className="font-semibold text-sm leading-tight">{movie.title}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{movie.director ?? ""}</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-xs md:text-sm leading-tight truncate max-w-[120px] md:max-w-none">{movie.title}</div>
+                        <div className="text-[10px] md:text-xs text-gray-500 mt-0.5 truncate">{movie.director ?? ""}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap gap-1">
+                  <td className="px-3 md:px-5 py-2.5 md:py-3">
+                    <div className="flex flex-wrap gap-0.5 md:gap-1">
                       {(movie.genre ?? []).slice(0, 2).map((g) => (
-                        <span key={g} className="text-[10px] liquid-gradient-subtle text-purple-400 px-2 py-0.5 rounded">
+                        <span key={g} className="text-[9px] md:text-[10px] liquid-gradient-subtle text-purple-400 px-1.5 md:px-2 py-0.5 rounded">
                           {g}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-400 tabular-nums">{movie.duration_minutes} мин</td>
-                  <td className="px-5 py-3">
+                  <td className="px-3 md:px-5 py-2.5 md:py-3 text-xs md:text-sm text-gray-400 tabular-nums">{movie.duration_minutes} мин</td>
+                  <td className="px-3 md:px-5 py-2.5 md:py-3">
                     <div className="flex items-center gap-1">
-                      <Star size={12} className="text-yellow-400 fill-yellow-400 shrink-0" />
-                      <span className="text-sm font-semibold">{movie.rating}</span>
+                      <Star size={10} className="md:hidden text-yellow-400 fill-yellow-400 shrink-0" />
+                      <Star size={12} className="hidden md:block text-yellow-400 fill-yellow-400 shrink-0" />
+                      <span className="text-xs md:text-sm font-semibold">{movie.rating}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
+                  <td className="px-3 md:px-5 py-2.5 md:py-3 text-[10px] md:text-xs text-gray-400 whitespace-nowrap">
                     {new Date(movie.release_date).toLocaleDateString("ru-RU", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
                     })}
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <td className="px-3 md:px-5 py-2.5 md:py-3">
+                    <div className="flex items-center justify-end gap-0.5 md:gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setPanelMovie(movie)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors active:scale-95"
                         title="Редактировать"
                       >
-                        <Edit2 size={14} />
+                        <Edit2 size={12} className="md:hidden" />
+                        <Edit2 size={14} className="hidden md:block" />
                       </button>
                       <button
                         onClick={() => handleDelete(movie.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
+                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors active:scale-95"
                         title="Удалить"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} className="md:hidden" />
+                        <Trash2 size={14} className="hidden md:block" />
                       </button>
                     </div>
                   </td>
@@ -441,8 +438,9 @@ function MoviesTab({
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-gray-600 text-sm">
-                    <Film size={36} className="mx-auto mb-3 opacity-20" />
+                  <td colSpan={6} className="py-12 md:py-16 text-center text-gray-600 text-xs md:text-sm">
+                    <Film size={28} className="md:hidden mx-auto mb-2 opacity-20" />
+                    <Film size={36} className="hidden md:block mx-auto mb-3 opacity-20" />
                     Фильмы не найдены
                   </td>
                 </tr>
@@ -516,7 +514,7 @@ function MoviePanel({
       icon={<Film size={17} className="text-purple-400" />}
       onClose={onClose}
     >
-      <div className="space-y-4 pb-4">
+      <div className="space-y-3 md:space-y-4 pb-4">
         <Field label="Название *">
           <FInput
             value={form.title ?? ""}
@@ -530,12 +528,12 @@ function MoviePanel({
             value={form.description ?? ""}
             onChange={(e) => set("description", e.target.value)}
             rows={3}
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white resize-none placeholder:text-gray-600"
+            className="w-full bg-black/40 border border-white/10 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white resize-none placeholder:text-gray-600"
             placeholder="Краткое описание сюжета…"
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           <Field label="Длительность (мин)">
             <FInput
               type="number"
@@ -565,7 +563,7 @@ function MoviePanel({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           <Field label="Дата выхода">
             <FInput
               type="date"
@@ -600,7 +598,7 @@ function MoviePanel({
             <img
               src={form.poster_url}
               alt="Постер"
-              className="mt-2 h-32 w-auto rounded-xl border border-white/10 object-cover bg-white/5"
+              className="mt-2 h-28 md:h-32 w-auto rounded-lg md:rounded-xl border border-white/10 object-cover bg-white/5"
             />
           )}
         </Field>
@@ -623,7 +621,7 @@ function MoviePanel({
 
         <button
           onClick={handleSave}
-          className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
+          className="w-full py-3 liquid-gradient rounded-lg md:rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 active:scale-98"
         >
           <Save size={15} /> Сохранить фильм
         </button>
@@ -657,6 +655,7 @@ function SessionsTab({
   const [editData, setEditData] = useState({ time: "", price: "" });
   const [bulkOpen, setBulkOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  
   const filtered = useMemo(() => {
     return sessions
       .filter((s) => {
@@ -795,91 +794,101 @@ function SessionsTab({
 
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2.5 mb-5">
-        {/* Search */}
-        <div className="relative">
+      {/* Toolbar - Mobile-first */}
+      <div className="space-y-2 md:space-y-0 md:flex md:flex-wrap md:items-center md:gap-2.5 mb-4 md:mb-5">
+        {/* Search - на мобильных на всю ширину */}
+        <div className="relative w-full md:w-auto">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск…"
-            className="bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 w-44 text-white"
+            className="bg-black/40 border border-white/10 rounded-lg md:rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 w-full md:w-44 text-white"
           />
         </div>
 
-        {/* Date filter */}
-        <div className="relative flex items-center">
-          <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="bg-black/40 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
-          />
+        {/* Фильтры - на мобильных в ряд */}
+        <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+          <div className="relative flex-shrink-0">
+            <Calendar size={12} className="md:hidden absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <Calendar size={14} className="hidden md:block absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-lg md:rounded-xl pl-8 md:pl-9 pr-2 md:pr-3 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+
+          <div className="relative flex-shrink-0">
+            <select
+              value={movieFilter}
+              onChange={(e) => setMovieFilter(e.target.value)}
+              className="appearance-none bg-black/40 border border-white/10 rounded-lg md:rounded-xl px-3 md:px-4 py-2 text-xs md:text-sm text-white pr-7 md:pr-8 focus:outline-none focus:border-purple-500/50 w-32 md:w-48"
+            >
+              <option value="">Все фильмы</option>
+              {movies.map((m) => (
+                <option key={m.id} value={m.id}>{m.title}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <ChevronDown size={13} className="hidden md:block absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          </div>
+
+          <div className="relative flex-shrink-0">
+            <select
+              value={cinemaFilter}
+              onChange={(e) => setCinemaFilter(e.target.value)}
+              className="appearance-none bg-black/40 border border-white/10 rounded-lg md:rounded-xl px-3 md:px-4 py-2 text-xs md:text-sm text-white pr-7 md:pr-8 focus:outline-none focus:border-purple-500/50 w-36 md:w-52"
+            >
+              <option value="">Все кинотеатры</option>
+              {cinemas.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <ChevronDown size={13} className="hidden md:block absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          </div>
         </div>
 
-        {/* Movie filter */}
-        <div className="relative">
-          <select
-            value={movieFilter}
-            onChange={(e) => setMovieFilter(e.target.value)}
-            className="appearance-none bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white pr-8 focus:outline-none focus:border-purple-500/50 w-48"
+        {/* Кнопки действий */}
+        <div className="flex items-center gap-2 pt-1 md:pt-0">
+          <span className="text-[10px] md:text-xs text-gray-500 flex-1 md:flex-none md:ml-auto">
+            {filtered.length === 150 ? "150+ сеансов" : `${filtered.length} сеансов`}
+          </span>
+
+          <button
+            onClick={() => setAddOpen(true)}
+            className="flex items-center gap-1 md:gap-1.5 px-3 md:px-4 py-2 glass rounded-lg md:rounded-xl text-xs md:text-sm hover:bg-white/10 transition-colors text-gray-300 border border-white/10 active:scale-95"
           >
-            <option value="">Все фильмы</option>
-            {movies.map((m) => (
-              <option key={m.id} value={m.id}>{m.title}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
+            <Plus size={12} className="md:hidden" />
+            <Plus size={14} className="hidden md:block" />
+            <span className="hidden sm:inline">Сеанс</span>
+          </button>
 
-        {/* Cinema filter */}
-        <div className="relative">
-          <select
-            value={cinemaFilter}
-            onChange={(e) => setCinemaFilter(e.target.value)}
-            className="appearance-none bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white pr-8 focus:outline-none focus:border-purple-500/50 w-52"
+          <button
+            onClick={() => setBulkOpen(true)}
+            className="flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 liquid-gradient rounded-lg md:rounded-xl text-xs md:text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 active:scale-95"
           >
-            <option value="">Все кинотеатры</option>
-            {cinemas.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            <Layers size={12} className="md:hidden" />
+            <Layers size={14} className="hidden md:block" />
+            <span className="hidden sm:inline">Массовое</span>
+          </button>
         </div>
-
-        <span className="text-xs text-gray-500 ml-auto">
-          {filtered.length === 150 ? "150+ сеансов" : `${filtered.length} сеансов`}
-        </span>
-
-        <button
-          onClick={() => setAddOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 glass rounded-xl text-sm hover:bg-white/10 transition-colors text-gray-300 border border-white/10"
-        >
-          <Plus size={14} /> Сеанс
-        </button>
-
-        <button
-          onClick={() => setBulkOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 liquid-gradient rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
-        >
-          <Layers size={14} /> Массовое создание
-        </button>
       </div>
 
       {/* Table */}
-      <div className="glass-strong rounded-2xl overflow-hidden">
+      <div className="glass-strong rounded-xl md:rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[740px]">
+          <table className="w-full min-w-[600px] md:min-w-[740px]">
             <thead>
               <tr className="border-b border-white/8 bg-black/30">
-                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Фильм</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Кинотеатр / Зал</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">Дата</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Время</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Цена</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Действия</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-left text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider">Фильм</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-left text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider">Кинотеатр / Зал</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-left text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider w-16 md:w-20">Дата</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-left text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider w-16 md:w-24">Время</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-left text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider w-20 md:w-32">Цена</th>
+                <th className="px-3 md:px-5 py-2.5 md:py-3 text-right text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider w-16 md:w-28">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -895,105 +904,104 @@ function SessionsTab({
                       isEditing ? "bg-purple-500/5" : "hover:bg-white/[0.02]"
                     }`}
                   >
-                    {/* Movie */}
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                    <td className="px-3 md:px-5 py-2 md:py-3">
+                      <div className="flex items-center gap-2 md:gap-2.5 min-w-0">
                         <img
                           src={movie?.poster_url}
                           alt=""
-                          className="w-8 h-11 rounded object-cover border border-white/10 shrink-0 bg-white/5"
+                          className="w-7 h-10 md:w-8 md:h-11 rounded object-cover border border-white/10 shrink-0 bg-white/5"
                         />
-                        <span className="text-xs font-medium truncate max-w-[140px]">
+                        <span className="text-[11px] md:text-xs font-medium truncate max-w-[100px] md:max-w-[140px]">
                           {movie?.title ?? "—"}
                         </span>
                       </div>
                     </td>
 
-                    {/* Cinema / Hall */}
-                    <td className="px-5 py-3">
-                      <div className="text-xs font-medium truncate max-w-[160px]">{cinema?.name ?? "—"}</div>
-                      <div className="text-[11px] text-gray-500">{session.hall_name || `Зал ${session.hall_id}`}</div>
+                    <td className="px-3 md:px-5 py-2 md:py-3">
+                      <div className="text-[11px] md:text-xs font-medium truncate max-w-[100px] md:max-w-[160px]">{cinema?.name ?? "—"}</div>
+                      <div className="text-[9px] md:text-[11px] text-gray-500 truncate">{session.hall_name || `Зал ${session.hall_id}`}</div>
                     </td>
 
-                    {/* Date */}
-                    <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
+                    <td className="px-3 md:px-5 py-2 md:py-3 text-[10px] md:text-xs text-gray-400 whitespace-nowrap">
                       {SHORT_DATE(session.date)}
                     </td>
 
-                    {/* Time — inline editable */}
-                    <td className="px-5 py-3">
+                    <td className="px-3 md:px-5 py-2 md:py-3">
                       {isEditing ? (
                         <input
                           type="time"
                           value={editData.time}
                           onChange={(e) => setEditData((d) => ({ ...d, time: e.target.value }))}
-                          className="w-24 bg-black/60 border border-purple-500/50 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
+                          className="w-20 md:w-24 bg-black/60 border border-purple-500/50 rounded-md md:rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 text-[11px] md:text-xs text-white focus:outline-none"
                         />
                       ) : (
-                        <span className="font-mono font-semibold text-sm">{session.time}</span>
+                        <span className="font-mono font-semibold text-xs md:text-sm">{session.time}</span>
                       )}
                     </td>
 
-                    {/* Price — inline editable */}
-                    <td className="px-5 py-3">
+                    <td className="px-3 md:px-5 py-2 md:py-3">
                       {isEditing ? (
                         <input
                           type="number"
                           value={editData.price}
                           onChange={(e) => setEditData((d) => ({ ...d, price: e.target.value }))}
-                          className="w-24 bg-black/60 border border-purple-500/50 rounded-lg px-2 py-1 text-xs text-emerald-400 focus:outline-none"
+                          className="w-20 md:w-24 bg-black/60 border border-purple-500/50 rounded-md md:rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 text-[11px] md:text-xs text-emerald-400 focus:outline-none"
                         />
                       ) : (
-                        <span className="text-emerald-400 font-semibold text-xs">
+                        <span className="text-emerald-400 font-semibold text-[11px] md:text-xs">
                           {formatRub(session.price)}
                         </span>
                       )}
                     </td>
 
-                    {/* Actions */}
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="px-3 md:px-5 py-2 md:py-3">
+                      <div className="flex items-center justify-end gap-0.5 md:gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         {isEditing ? (
                           <>
                             <button
                               onClick={() => saveEdit(session.id)}
-                              className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                              className="p-1 md:p-1.5 rounded-md md:rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors active:scale-95"
                               title="Сохранить"
                             >
-                              <Check size={13} />
+                              <Check size={11} className="md:hidden" />
+                              <Check size={13} className="hidden md:block" />
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 transition-colors"
+                              className="p-1 md:p-1.5 rounded-md md:rounded-lg hover:bg-white/10 text-gray-500 transition-colors active:scale-95"
                               title="Отмена"
                             >
-                              <X size={13} />
+                              <X size={11} className="md:hidden" />
+                              <X size={13} className="hidden md:block" />
                             </button>
                           </>
                         ) : (
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <>
                             <button
                               onClick={() => startEdit(session)}
-                              className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                              className="p-1 md:p-1.5 rounded-md md:rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors active:scale-95"
                               title="Редактировать"
                             >
-                              <Edit2 size={13} />
+                              <Edit2 size={11} className="md:hidden" />
+                              <Edit2 size={13} className="hidden md:block" />
                             </button>
                             <button
                               onClick={() => duplicateSession(session)}
-                              className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                              className="p-1 md:p-1.5 rounded-md md:rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors active:scale-95"
                               title="Дублировать"
                             >
-                              <Copy size={13} />
+                              <Copy size={11} className="md:hidden" />
+                              <Copy size={13} className="hidden md:block" />
                             </button>
                             <button
                               onClick={() => handleDeleteSession(session.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
+                              className="p-1 md:p-1.5 rounded-md md:rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors active:scale-95"
                               title="Удалить"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={11} className="md:hidden" />
+                              <Trash2 size={13} className="hidden md:block" />
                             </button>
-                          </div>
+                          </>
                         )}
                       </div>
                     </td>
@@ -1002,8 +1010,9 @@ function SessionsTab({
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-gray-600 text-sm">
-                    <Clock size={36} className="mx-auto mb-3 opacity-20" />
+                  <td colSpan={6} className="py-12 md:py-16 text-center text-gray-600 text-xs md:text-sm">
+                    <Clock size={28} className="md:hidden mx-auto mb-2 opacity-20" />
+                    <Clock size={36} className="hidden md:block mx-auto mb-3 opacity-20" />
                     Нет сеансов по выбранным фильтрам
                   </td>
                 </tr>
@@ -1013,7 +1022,6 @@ function SessionsTab({
         </div>
       </div>
 
-      {/* Bulk create panel */}
       {bulkOpen && (
         <BulkSessionPanel
           movies={movies}
@@ -1024,7 +1032,6 @@ function SessionsTab({
         />
       )}
 
-      {/* Add single session panel */}
       {addOpen && (
         <AddSessionPanel
           movies={movies}
@@ -1114,7 +1121,7 @@ function BulkSessionPanel({
       onClose={onClose}
       wide
     >
-      <div className="space-y-4 pb-4">
+      <div className="space-y-3 md:space-y-4 pb-4">
         <Field label="Фильм">
           <FSelect value={String(movieId)} onChange={(v) => { setMovieId(Number(v)); resetPreview(); }}>
             {movies.map((m) => (
@@ -1124,18 +1131,18 @@ function BulkSessionPanel({
         </Field>
 
         {selectedMovie && (
-          <div className="flex items-center gap-3 p-3 glass rounded-xl border border-white/8">
-            <img src={selectedMovie.poster_url} alt="" className="w-9 h-12 rounded object-cover shrink-0 bg-white/5" />
-            <div>
-              <div className="text-sm font-semibold">{selectedMovie.title}</div>
-              <div className="text-xs text-gray-400">
+          <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 glass rounded-lg md:rounded-xl border border-white/8">
+            <img src={selectedMovie.poster_url} alt="" className="w-8 h-11 md:w-9 md:h-12 rounded object-cover shrink-0 bg-white/5" />
+            <div className="min-w-0">
+              <div className="text-xs md:text-sm font-semibold truncate">{selectedMovie.title}</div>
+              <div className="text-[10px] md:text-xs text-gray-400">
                 {selectedMovie.duration_minutes} мин · {(selectedMovie.genre ?? []).slice(0, 2).join(", ")}
               </div>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           <Field label="Кинотеатр">
             <FSelect value={String(cinemaId)} onChange={(v) => { setCinemaId(Number(v)); resetPreview(); }}>
               {cinemas.map((c) => (
@@ -1166,7 +1173,7 @@ function BulkSessionPanel({
           />
         </Field>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 md:gap-3">
           <Field label="Начало">
             <FInput type="time" value={startTime} onChange={(e) => { setStartTime(e.target.value); resetPreview(); }} />
           </Field>
@@ -1191,7 +1198,7 @@ function BulkSessionPanel({
             placeholder="499"
           />
           {price && parseInt(price) > 0 && (
-            <div className="text-[11px] text-gray-500 mt-1">
+            <div className="text-[10px] md:text-[11px] text-gray-500 mt-1">
               Округление до: <span className="text-purple-400 font-semibold">{formatRub(snapped)}</span>
             </div>
           )}
@@ -1199,24 +1206,24 @@ function BulkSessionPanel({
 
         <button
           onClick={generate}
-          className="w-full py-2.5 border border-purple-500/40 text-purple-300 rounded-xl text-sm font-medium hover:bg-purple-500/10 transition-colors flex items-center justify-center gap-2"
+          className="w-full py-2 md:py-2.5 border border-purple-500/40 text-purple-300 rounded-lg md:rounded-xl text-xs md:text-sm font-medium hover:bg-purple-500/10 transition-colors flex items-center justify-center gap-2 active:scale-98"
         >
           <Clock size={14} /> Сгенерировать расписание
         </button>
 
         {preview.length > 0 && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs md:text-sm">
               <span className="text-gray-400">Предпросмотр</span>
-              <span className="bg-white/10 px-2.5 py-0.5 rounded-full text-xs font-medium">
+              <span className="bg-white/10 px-2 md:px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-medium">
                 {preview.length} сеансов
               </span>
             </div>
-            <div className="glass rounded-xl p-3 max-h-52 overflow-y-auto custom-scrollbar space-y-1">
+            <div className="glass rounded-lg md:rounded-xl p-2 md:p-3 max-h-40 md:max-h-52 overflow-y-auto custom-scrollbar space-y-1">
               {preview.map((s, i) => (
-                <div key={i} className="flex justify-between items-center px-3 py-1.5 rounded-lg bg-white/5 text-sm">
-                  <span className="font-mono text-xs font-semibold text-white/80">{s.time}</span>
-                  <span className="text-emerald-400 text-xs font-semibold">{formatRub(s.price)}</span>
+                <div key={i} className="flex justify-between items-center px-2 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg bg-white/5 text-xs md:text-sm">
+                  <span className="font-mono text-[11px] md:text-xs font-semibold text-white/80">{s.time}</span>
+                  <span className="text-emerald-400 text-[11px] md:text-xs font-semibold">{formatRub(s.price)}</span>
                 </div>
               ))}
             </div>
@@ -1229,7 +1236,7 @@ function BulkSessionPanel({
             onSave(preview);
           }}
           disabled={preview.length === 0}
-          className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+          className={`w-full py-2.5 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-sm flex items-center justify-center gap-2 transition-all active:scale-98 ${
             preview.length
               ? "liquid-gradient hover:opacity-90 shadow-lg shadow-purple-500/25"
               : "bg-white/5 text-gray-600 cursor-not-allowed"
@@ -1294,7 +1301,7 @@ function AddSessionPanel({
       icon={<Clock size={17} className="text-purple-400" />}
       onClose={onClose}
     >
-      <div className="space-y-4 pb-4">
+      <div className="space-y-3 md:space-y-4 pb-4">
         <Field label="Фильм">
           <FSelect value={String(movieId)} onChange={(v) => setMovieId(Number(v))}>
             {movies.map((m) => (
@@ -1318,7 +1325,7 @@ function AddSessionPanel({
             ))}
           </FSelect>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           <Field label="Дата">
             <FInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
@@ -1338,7 +1345,7 @@ function AddSessionPanel({
 
         <button
           onClick={handleSave}
-          className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-purple-500/25"
+          className="w-full py-3 liquid-gradient rounded-lg md:rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-purple-500/25 active:scale-98"
         >
           <Save size={14} /> Добавить сеанс
         </button>
@@ -1417,10 +1424,8 @@ function CinemasTab({
           }
         }
         
-        // Добавляем кинотеатр в список
         setCinemas((p) => [...p, { ...newCinema, totalHalls, facilities: [] }]);
         
-        // Обновляем hallsMap без перезагрузки страницы
         setHallsMap((prev) => ({
           ...prev,
           [newCinema.id]: createdHalls.map(h => ({ id: h.id, name: h.name }))
@@ -1436,99 +1441,98 @@ function CinemasTab({
 
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-5 gap-4">
-        <div className="relative">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 md:mb-5 gap-3">
+        <div className="relative flex-1 sm:flex-none">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск кинотеатра или города…"
-            className="bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 w-72 text-white"
+            className="bg-black/40 border border-white/10 rounded-lg md:rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 w-full sm:w-72 text-white"
           />
         </div>
         <button
           onClick={() => setPanelCinema("new")}
-          className="flex items-center gap-2 px-5 py-2 liquid-gradient rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 shrink-0"
+          className="flex items-center justify-center gap-2 px-4 md:px-5 py-2 liquid-gradient rounded-lg md:rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 active:scale-98"
         >
           <Plus size={15} /> Добавить кинотеатр
         </button>
       </div>
 
-      {/* Cinema cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
         {filtered.map((cinema) => {
           const halls = hallsMap[cinema.id] ?? [];
 
           return (
             <div
               key={cinema.id}
-              className="glass-strong rounded-2xl p-5 border border-white/8 hover:border-purple-500/20 transition-all group"
+              className="glass-strong rounded-xl md:rounded-2xl p-3 md:p-5 border border-white/8 hover:border-purple-500/20 transition-all group"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="min-w-0 pr-4 flex-1">
-                  <div className="font-bold text-base leading-tight">{cinema.name}</div>
-                  <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                    <MapPin size={11} className="shrink-0" />
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className="min-w-0 pr-2 md:pr-4 flex-1">
+                  <div className="font-bold text-sm md:text-base leading-tight truncate">{cinema.name}</div>
+                  <div className="text-[10px] md:text-xs text-gray-400 flex items-center gap-1 mt-1">
+                    <MapPin size={10} className="md:hidden shrink-0" />
+                    <MapPin size={11} className="hidden md:block shrink-0" />
                     <span className="truncate">{cinema.city} · {cinema.address}</span>
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-0.5 md:gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => setPanelCinema(cinema)}
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-gray-500 hover:text-white transition-colors active:scale-95"
                     title="Редактировать"
                   >
-                    <Edit2 size={14} />
+                    <Edit2 size={12} className="md:hidden" />
+                    <Edit2 size={14} className="hidden md:block" />
                   </button>
                   <button
                     onClick={() => handleDelete(cinema.id)}
-                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors active:scale-95"
                     title="Удалить"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={12} className="md:hidden" />
+                    <Trash2 size={14} className="hidden md:block" />
                   </button>
                 </div>
               </div>
 
-              {/* Halls */}
               <div>
-                <div className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider">
+                <div className="text-[9px] md:text-[10px] text-gray-500 mb-1.5 md:mb-2 uppercase tracking-wider">
                   Залы ({halls.length})
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1 md:gap-1.5">
                   {halls.length > 0 ? (
                     <>
                       {halls.slice(0, 5).map((h, idx) => (
                         <span
                           key={`hall-${cinema.id}-${h.id}-${idx}`}
-                          className="text-[11px] bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg text-gray-300"
+                          className="text-[10px] md:text-[11px] bg-white/5 border border-white/8 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-gray-300"
                         >
                           {h.name}
                         </span>
                       ))}
                       {halls.length > 5 && (
-                        <span key={`hall-more-${cinema.id}`} className="text-[11px] bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg text-gray-500">
+                        <span key={`hall-more-${cinema.id}`} className="text-[10px] md:text-[11px] bg-white/5 border border-white/8 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-gray-500">
                           +{halls.length - 5}
                         </span>
                       )}
                     </>
                   ) : (
-                    <span key={`no-halls-${cinema.id}`} className="text-xs text-gray-600">Нет залов</span>
+                    <span key={`no-halls-${cinema.id}`} className="text-[11px] md:text-xs text-gray-600">Нет залов</span>
                   )}
                 </div>
               </div>
 
-              {/* Facilities */}
               {cinema.facilities && cinema.facilities.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-white/5">
+                <div className="flex flex-wrap gap-0.5 md:gap-1 mt-2 md:mt-3 pt-2 md:pt-3 border-t border-white/5">
                   {cinema.facilities.slice(0, 5).map((f, idx) => (
-                    <span key={`fac-${cinema.id}-${idx}`} className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-500">
+                    <span key={`fac-${cinema.id}-${idx}`} className="text-[9px] md:text-[10px] bg-white/5 px-1.5 md:px-2 py-0.5 rounded text-gray-500">
                       {f}
                     </span>
                   ))}
                   {cinema.facilities.length > 5 && (
-                    <span key={`fac-more-${cinema.id}`} className="text-[10px] text-gray-600">+{cinema.facilities.length - 5}</span>
+                    <span key={`fac-more-${cinema.id}`} className="text-[9px] md:text-[10px] text-gray-600">+{cinema.facilities.length - 5}</span>
                   )}
                 </div>
               )}
@@ -1537,8 +1541,9 @@ function CinemasTab({
         })}
 
         {filtered.length === 0 && (
-          <div key="no-cinemas" className="col-span-2 py-16 text-center text-gray-600 text-sm glass-strong rounded-2xl">
-            <Building2 size={36} className="mx-auto mb-3 opacity-20" />
+          <div key="no-cinemas" className="col-span-2 py-12 md:py-16 text-center text-gray-600 text-xs md:text-sm glass-strong rounded-xl md:rounded-2xl">
+            <Building2 size={28} className="md:hidden mx-auto mb-2 opacity-20" />
+            <Building2 size={36} className="hidden md:block mx-auto mb-3 opacity-20" />
             Кинотеатры не найдены
           </div>
         )}
@@ -1598,7 +1603,7 @@ function CinemaPanel({
       icon={<Building2 size={17} className="text-cyan-400" />}
       onClose={onClose}
     >
-      <div className="space-y-4 pb-4">
+      <div className="space-y-3 md:space-y-4 pb-4">
         <Field label="Название *">
           <FInput
             value={form.name ?? ""}
@@ -1623,7 +1628,7 @@ function CinemaPanel({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 md:gap-3">
           <Field label="Рейтинг (1–5)">
             <FInput
               type="number"
@@ -1649,13 +1654,13 @@ function CinemaPanel({
         </div>
 
         {isNew && (
-          <div className="text-xs text-gray-500 bg-white/5 rounded-lg p-3 border border-white/10">
+          <div className="text-[10px] md:text-xs text-gray-500 bg-white/5 rounded-lg p-2 md:p-3 border border-white/10">
             💡 При создании кинотеатра автоматически создадутся залы с названиями "Зал 1", "Зал 2" и т.д. (по 10 рядов × 10 мест)
           </div>
         )}
 
         {!isNew && (
-          <div className="text-xs text-gray-500 bg-white/5 rounded-lg p-3 border border-white/10">
+          <div className="text-[10px] md:text-xs text-gray-500 bg-white/5 rounded-lg p-2 md:p-3 border border-white/10">
             ℹ️ Залы создаются автоматически при создании кинотеатра. Для управления залами обратитесь к разделу "Сеансы".
           </div>
         )}
@@ -1670,7 +1675,7 @@ function CinemaPanel({
 
         <button
           onClick={handleSave}
-          className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
+          className="w-full py-3 liquid-gradient rounded-lg md:rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25 active:scale-98"
         >
           <Save size={14} /> Сохранить кинотеатр
         </button>
@@ -1703,23 +1708,21 @@ function SidePanel({
         onClick={onClose}
       />
       <div
-        className={`relative h-full glass-strong border-l border-white/10 shadow-[-30px_0_80px_rgba(0,0,0,0.9)] flex flex-col animate-in slide-in-from-right duration-300 ${
-          wide ? "w-[520px]" : "w-[460px]"
-        }`}
+        className={`relative h-full w-full sm:w-[460px] ${wide ? 'lg:w-[520px]' : ''} glass-strong border-l border-white/10 shadow-[-30px_0_80px_rgba(0,0,0,0.9)] flex flex-col animate-in slide-in-from-right duration-300`}
       >
-        <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-black/40">
-          <h2 className="font-semibold text-base flex items-center gap-2">
+        <div className="px-4 md:px-6 py-3 md:py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-black/40">
+          <h2 className="font-semibold text-sm md:text-base flex items-center gap-2">
             {icon}
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+            className="p-2 rounded-full hover:bg-white/10 transition-colors text-gray-400 hover:text-white active:scale-95"
           >
             <X size={17} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6">
           {children}
         </div>
       </div>
@@ -1730,7 +1733,7 @@ function SidePanel({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] text-gray-400 mb-1.5 font-semibold uppercase tracking-wider">
+      <label className="block text-[10px] md:text-[11px] text-gray-400 mb-1 md:mb-1.5 font-semibold uppercase tracking-wider">
         {label}
       </label>
       {children}
@@ -1742,7 +1745,7 @@ function FInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white placeholder:text-gray-600 ${
+      className={`w-full bg-black/40 border border-white/10 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white placeholder:text-gray-600 ${
         props.className ?? ""
       }`}
     />
@@ -1765,7 +1768,7 @@ function FSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white pr-9 cursor-pointer"
+        className="w-full appearance-none bg-black/40 border border-white/10 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-2.5 text-sm focus:outline-none focus:border-purple-500/50 transition-all text-white pr-8 md:pr-9 cursor-pointer"
       >
         {children}
       </select>

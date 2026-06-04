@@ -21,10 +21,8 @@ import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { useCity } from "../contexts/CityContext";
 import TrailerModal from "../components/TrailerModal";
-// Импортируем API функции и типы
-import { fetchMovies, fetchSessionsByMovie, type Movie as ApiMovie, type Session as ApiSession } from "../services/api";
+import { fetchMovies, fetchSessionsByMovie, fetchCinemas, type Movie as ApiMovie, type Session as ApiSession, type Cinema as ApiCinema } from "../services/api";
 
-// Расширенные типы для удобства
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
   rating: number;
@@ -43,11 +41,7 @@ interface ExtendedSession extends ApiSession {
   integrationLevel?: 1 | 2 | 3;
 }
 
-interface ExtendedCinema {
-  id: number;
-  name: string;
-  address: string;
-  city: string;
+interface ExtendedCinema extends ApiCinema {
   distance?: number;
   rating?: number;
   integrationLevel?: 1 | 2 | 3;
@@ -63,18 +57,16 @@ export default function MovieDetails() {
   const dateFromUrl = searchParams.get("date");
 
   const [selectedCinema, setSelectedCinema] = useState<string | null>(cinemaFromUrl);
-  const [selectedSession, setSelectedSession] = useState<number | null>(null); // Теперь храним число
+  const [selectedSession, setSelectedSession] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(dateFromUrl || new Date().toISOString().split("T")[0]);
   const [showTrailer, setShowTrailer] = useState(false);
   const [isPosterHovered, setIsPosterHovered] = useState(false);
 
-  // Состояния данных
   const [movie, setMovie] = useState<ExtendedMovie | null>(null);
   const [sessions, setSessions] = useState<ExtendedSession[]>([]);
   const [cinemas, setCinemas] = useState<ExtendedCinema[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Загрузка данных
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -82,8 +74,13 @@ export default function MovieDetails() {
         const movieId = Number(id);
         if (!movieId) throw new Error("Invalid movie ID");
 
-        // 1. Загружаем все фильмы и ищем нужный (в идеале нужен endpoint /movies/:id)
-        const allMovies = await fetchMovies();
+        // Параллельно загружаем фильмы, сеансы и кинотеатры
+        const [allMovies, apiSessions, allCinemas] = await Promise.all([
+          fetchMovies(),
+          fetchSessionsByMovie(movieId),
+          fetchCinemas(),
+        ]);
+
         const foundMovie = allMovies.find(m => m.id === movieId);
         
         if (!foundMovie) {
@@ -103,38 +100,26 @@ export default function MovieDetails() {
         };
         setMovie(extendedMovie);
 
-        // 2. Загружаем сеансы для этого фильма
-        const apiSessions = await fetchSessionsByMovie(movieId);
-        
-        // Формируем список уникальных кинотеатров из сеансов
-        const cinemaMap = new Map<number, ExtendedCinema>();
-        
-        const extendedSessions: ExtendedSession[] = apiSessions.map(s => {
-          // Добавляем кинотеатр в мапу, если его там нет
-          if (!cinemaMap.has(s.cinema_id)) {
-            cinemaMap.set(s.cinema_id, {
-              id: s.cinema_id,
-              name: `Кинотеатр ${s.cinema_id}`, // Заглушка имени, пока нет отдельного эндпоинта
-              address: s.cinema_address,
-              city: s.cinema_city,
-              rating: 4.5,
-              distance: Math.random() * 10,
-              integrationLevel: 1,
-            });
-          }
+        // Расширяем кинотеатры дополнительными полями
+        const extendedCinemas: ExtendedCinema[] = allCinemas.map(c => ({
+          ...c,
+          rating: c.rating || 4.5,
+          distance: Math.random() * 10,
+          integrationLevel: 1,
+        }));
+        setCinemas(extendedCinemas);
 
-          return {
-            ...s,
-            time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
-            date: s.start_time.substring(0, 10),
-            price: s.base_price_cents / 100,
-            hallName: s.hall_name || `Зал ${s.hall_id}`,
-            cinemaId: s.cinema_id,
-          };
-        });
+        // Обрабатываем сеансы
+        const extendedSessions: ExtendedSession[] = apiSessions.map(s => ({
+          ...s,
+          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+          date: s.start_time.substring(0, 10),
+          price: s.base_price_cents / 100,
+          hallName: s.hall_name || `Зал ${s.hall_id}`,
+          cinemaId: s.cinema_id,
+        }));
 
         setSessions(extendedSessions);
-        setCinemas(Array.from(cinemaMap.values()));
 
       } catch (error) {
         console.error("Failed to load movie details:", error);
@@ -147,7 +132,6 @@ export default function MovieDetails() {
     loadData();
   }, [id, navigate]);
 
-  // Scroll to showtimes
   useEffect(() => {
     if (window.location.hash === "#showtimes") {
       setTimeout(() => {
@@ -157,7 +141,6 @@ export default function MovieDetails() {
     }
   }, []);
 
-  // Фильтрация сеансов по городу
   const allSessions = useMemo(() => {
     return sessions.filter(session => {
       const cinema = cinemas.find(c => c.id === session.cinemaId);
@@ -169,7 +152,6 @@ export default function MovieDetails() {
     return cinemas.filter(cinema => cinema.city === selectedCity);
   }, [cinemas, selectedCity]);
 
-  // Даты
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
@@ -181,7 +163,6 @@ export default function MovieDetails() {
     return dates;
   }, []);
 
-  // Фильтры
   const filteredSessionsByDate = allSessions.filter(s => s.date === selectedDate);
 
   const sessionsByCinema = useMemo(() => {

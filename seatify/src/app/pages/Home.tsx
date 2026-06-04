@@ -10,9 +10,11 @@ import {
   Navigation,
   Zap,
   ChevronRight,
+  ChevronDown,
   X,
   Flame,
   Timer,
+  SlidersHorizontal,
 } from "lucide-react";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
@@ -32,7 +34,6 @@ import { useCity } from "../contexts/CityContext";
 import { formatRub } from "../utils/formatRub";
 import { toast } from "sonner";
 
-// Вспомогательные типы
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
   rating: number;
@@ -68,6 +69,7 @@ export default function Home() {
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [showAllCinemasModal, setShowAllCinemasModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [movies, setMovies] = useState<ExtendedMovie[]>([]);
   const [sessions, setSessions] = useState<ExtendedSession[]>([]);
@@ -78,7 +80,6 @@ export default function Home() {
     const loadData = async () => {
       setLoading(true);
       try {
-        // 1. Загружаем фильмы, кинотеатры и сеансы параллельно
         const [apiMovies, apiCinemas] = await Promise.all([
           fetchMovies(),
           fetchCinemas(),
@@ -94,7 +95,6 @@ export default function Home() {
         }));
         setMovies(extendedMovies);
 
-        // 2. Загружаем сеансы для каждого фильма
         const allSessionsPromises = apiMovies.map(m => fetchSessionsByMovie(m.id));
         const sessionsArrays = await Promise.all(allSessionsPromises);
         
@@ -109,7 +109,6 @@ export default function Home() {
         }));
         setSessions(flatSessions);
 
-        // 3. Загружаем кинотеатры напрямую из API
         const extendedCinemas: ExtendedCinema[] = apiCinemas.map(c => ({
           ...c,
           rating: c.rating || 4.5,
@@ -258,23 +257,24 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center ">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-purple-400 text-xl font-semibold animate-pulse">Загрузка афиши...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pt-24 bg-[#05050acc]">
+    <div className="min-h-screen pt-20 md:pt-24 bg-[#05050acc]">
       {/* Floating Control Bar */}
       <motion.div
         initial={{ y: -100 }}
         animate={{ y: 0 }}
-        className={`fixed top-20 left-0 right-0 z-40 transition-all duration-300 ${scrolled ? "py-2" : "py-4"}`}
+        className={`fixed top-14 md:top-20 left-2 right-2 md:left-0 md:right-0 z-40 transition-all duration-300 ${scrolled ? "py-1 md:py-2" : "py-2 md:py-4"}`}
       >
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`glass-strong rounded-2xl transition-all duration-300 ${scrolled ? "p-3" : "p-4"}`}>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+        <div className="max-w-[1600px] mx-auto px-2 md:px-4 lg:px-8">
+          <div className={`glass-strong rounded-2xl transition-all duration-300 ${scrolled ? "p-2 md:p-3" : "p-3 md:p-4"}`}>
+            {/* Desktop Layout */}
+            <div className="hidden md:grid md:grid-cols-12 gap-3">
               <div className="md:col-span-2">
                 <CityDropdown selectedCity={selectedCity} onCityChange={setSelectedCity} />
               </div>
@@ -312,14 +312,80 @@ export default function Home() {
                 />
               </div>
             </div>
+
+            {/* Mobile Layout - Compact */}
+            <div className="md:hidden">
+              <div className="flex items-center gap-2">
+                {/* Город - компактный */}
+                <div className="flex-shrink-0">
+                  <CityDropdown selectedCity={selectedCity} onCityChange={setSelectedCity} />
+                </div>
+                
+                {/* Поиск */}
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Поиск..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 glass rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-colors"
+                  />
+                </div>
+                
+                {/* Кнопка фильтров */}
+                <button
+                  onClick={() => setShowMobileFilters(!showMobileFilters)}
+                  className={`flex-shrink-0 p-2.5 glass rounded-xl transition-all active:scale-95 ${showMobileFilters ? 'liquid-gradient' : ''}`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Раскрывающиеся фильтры */}
+              <AnimatePresence>
+                {showMobileFilters && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-3 space-y-2">
+                      <select
+                        value={selectedCinema || ""}
+                        onChange={(e) => setSelectedCinema(e.target.value ? String(e.target.value) : null)}
+                        className="w-full px-3 py-2 glass rounded-xl text-sm text-white bg-transparent focus:outline-none focus:border-purple-500/50 transition-colors cursor-pointer"
+                      >
+                        <option value="" className="bg-[#1A1A22]">Все кинотеатры</option>
+                        {cinemas.filter((c) => c.city === selectedCity).map((cinema) => (
+                          <option key={cinema.id} value={cinema.id} className="bg-[#1A1A22]">{cinema.name}</option>
+                        ))}
+                      </select>
+                      
+                      <select
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="w-full px-3 py-2 glass rounded-xl text-sm text-white bg-transparent focus:outline-none focus:border-purple-500/50 transition-colors cursor-pointer"
+                      >
+                        {availableDates.map((date) => (
+                          <option key={date.value} value={date.value} className="bg-[#1A1A22]">{date.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </motion.div>
 
-      <div className={scrolled ? "h-20" : "h-28"} />
+      <div className={scrolled ? "h-16 md:h-20" : "h-20 md:h-28"} />
 
       {/* Hero Section */}
-      <section className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+      <section className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 mb-6 md:mb-8">
         <AnimatePresence mode="wait">
           {heroMovie && (
             <motion.div
@@ -328,7 +394,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.5 }}
-              className="relative h-[280px] glass-strong rounded-3xl overflow-hidden group cursor-pointer hover:scale-[1.01] transition-transform duration-500"
+              className="relative h-48 sm:h-56 md:h-64 lg:h-[280px] glass-strong rounded-2xl md:rounded-3xl overflow-hidden group cursor-pointer hover:scale-[1.01] transition-transform duration-500"
               onClick={() => {
                 const params = new URLSearchParams();
                 if (selectedCinema) params.set("cinema", String(selectedCinema));
@@ -341,30 +407,30 @@ export default function Home() {
                 <img src={heroMovie.bannerUrl || heroMovie.poster_url} alt={heroMovie.title} className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity duration-500" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
               </div>
-              <div className="relative z-10 h-full flex items-center px-8">
+              <div className="relative z-10 h-full flex items-center px-4 md:px-8">
                 <div className="max-w-2xl">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap className="w-4 h-4 text-yellow-400" />
-                    <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">Популярное</span>
+                  <div className="flex items-center gap-2 mb-2 md:mb-3">
+                    <Zap className="w-3 h-3 md:w-4 md:h-4 text-yellow-400" />
+                    <span className="text-[10px] md:text-xs font-semibold text-yellow-400 uppercase tracking-wider">Популярное</span>
                   </div>
-                  <h2 className="text-4xl md:text-5xl font-bold mb-3 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">{heroMovie.title}</h2>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-1 px-3 py-1 glass-strong rounded-full">
-                      <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-                      <span className="font-bold text-sm">{heroMovie.rating}</span>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 md:mb-3 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent line-clamp-2">{heroMovie.title}</h2>
+                  <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 md:mb-4">
+                    <div className="flex items-center gap-1 px-2 md:px-3 py-1 glass-strong rounded-full">
+                      <Star className="w-3 h-3 md:w-4 md:h-4 fill-yellow-500 text-yellow-500" />
+                      <span className="font-bold text-xs md:text-sm">{heroMovie.rating}</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 md:gap-2">
                       {(heroMovie.genre ?? []).slice(0, 2).map((genre) => (
-                        <span key={genre} className="px-3 py-1 liquid-gradient-subtle text-purple-300 rounded-full text-xs font-medium">{genre}</span>
+                        <span key={genre} className="px-2 md:px-3 py-1 liquid-gradient-subtle text-purple-300 rounded-full text-[10px] md:text-xs font-medium">{genre}</span>
                       ))}
                     </div>
-                    <span className="text-sm text-gray-400">{heroMovie.duration_minutes} мин</span>
+                    <span className="text-xs md:text-sm text-gray-400">{heroMovie.duration_minutes} мин</span>
                   </div>
-                  <p className="text-gray-300 text-sm mb-5 line-clamp-2 max-w-lg">{heroMovie.description}</p>
-                  <button className="px-6 py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 text-sm">Купить билет</button>
+                  <p className="hidden md:block text-gray-300 text-sm mb-5 line-clamp-2 max-w-lg">{heroMovie.description}</p>
+                  <button className="px-4 md:px-6 py-2 md:py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 text-xs md:text-sm">Купить билет</button>
                 </div>
               </div>
-              <div className="absolute bottom-4 right-4 flex gap-2">
+              <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 flex gap-2">
                 {[0, 1, 2].map((index) => (
                   <button
                     key={index}
@@ -379,27 +445,27 @@ export default function Home() {
       </section>
 
       {/* Smart Filters Row */}
-      <section className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-        <div className="space-y-3">
+      <section className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 mb-4 md:mb-6">
+        <div className="space-y-2 md:space-y-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <Film className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Film className="w-3 h-3 md:w-4 md:h-4 text-gray-400 flex-shrink-0" />
             {genres.map((genre) => (
               <button
                 key={genre}
                 onClick={() => setSelectedGenre(genre)}
-                className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedGenre === genre ? "liquid-gradient text-white shadow-lg shadow-purple-500/30" : "glass glass-hover text-gray-400"}`}
+                className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full text-[11px] md:text-xs font-medium whitespace-nowrap transition-all ${selectedGenre === genre ? "liquid-gradient text-white shadow-lg shadow-purple-500/30" : "glass glass-hover text-gray-400"}`}
               >
                 {genre}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <Zap className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Zap className="w-3 h-3 md:w-4 md:h-4 text-gray-400 flex-shrink-0" />
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === category ? "liquid-gradient text-white shadow-lg shadow-purple-500/30" : "glass glass-hover text-gray-400"}`}
+                className={`px-2.5 md:px-3 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === category ? "liquid-gradient text-white shadow-lg shadow-purple-500/30" : "glass glass-hover text-gray-400"}`}
               >
                 {category}
               </button>
@@ -409,64 +475,64 @@ export default function Home() {
       </section>
 
       {/* Movies Grid */}
-      <section id="movies" className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">{selectedGenre === "Все" ? "Все фильмы" : selectedGenre}</h2>
-          <span className="text-gray-400 text-sm">
+      <section id="movies" className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 mb-8 md:mb-12">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <h2 className="text-xl md:text-2xl font-bold">{selectedGenre === "Все" ? "Все фильмы" : selectedGenre}</h2>
+          <span className="text-gray-400 text-xs md:text-sm">
             {filteredMovies.length} {filteredMovies.length === 1 ? "фильм" : filteredMovies.length < 5 ? "фильма" : "фильмов"}
           </span>
         </div>
         {filteredMovies.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {filteredMovies.map((movie) => (
               <MovieCard key={movie.id} movie={movie} selectedCinema={selectedCinema} selectedDate={selectedDate} />
             ))}
           </div>
         ) : (
-          <div className="text-center py-20">
-            <div className="glass rounded-2xl p-8 inline-block">
-              <p className="text-gray-400 text-lg">Фильмы не найдены по вашим критериям.</p>
+          <div className="text-center py-12 md:py-20">
+            <div className="glass rounded-2xl p-6 md:p-8 inline-block">
+              <p className="text-gray-400 text-sm md:text-lg">Фильмы не найдены по вашим критериям.</p>
             </div>
           </div>
         )}
       </section>
 
       {/* Cinema-Based Sessions Preview */}
-      <section id="cinemas" className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-        <div className="mb-5 flex items-center justify-between">
+      <section id="cinemas" className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 mb-8 md:mb-12">
+        <div className="mb-4 md:mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-purple-400" />
-            <h2 className="text-2xl font-bold">Рядом с вами</h2>
-            <span className="text-sm text-gray-400">({selectedCity})</span>
+            <MapPin className="w-4 h-4 md:w-5 md:h-5 text-purple-400" />
+            <h2 className="text-xl md:text-2xl font-bold">Рядом с вами</h2>
+            <span className="text-xs md:text-sm text-gray-400">({selectedCity})</span>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-xs md:text-sm text-gray-400">
             {availableDates.find((d) => d.value === selectedDate)?.label}
           </div>
         </div>
 
         {cinemasWithSessions.length === 0 ? (
-          <div className="glass-strong rounded-2xl p-12 text-center">
-            <p className="text-gray-400">Нет кинотеатров на выбранную дату</p>
+          <div className="glass-strong rounded-2xl p-8 md:p-12 text-center">
+            <p className="text-gray-400 text-sm md:text-base">Нет кинотеатров на выбранную дату</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
               {nearestThreeCinemas.map(({ cinema, sessions: cinemaSessions, movieGroups }) => (
-                <div key={cinema.id} className="glass-strong rounded-2xl p-4 flex flex-col h-full">
-                  <div className="mb-3 pb-3 border-b border-white/10">
-                    <h3 className="font-bold mb-1 cursor-pointer hover:text-purple-400 transition-colors" onClick={() => (window.location.href = `/cinema/${cinema.id}`)}>{cinema.name}</h3>
-                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                <div key={cinema.id} className="glass-strong rounded-2xl p-3 md:p-4 flex flex-col h-full">
+                  <div className="mb-2 md:mb-3 pb-2 md:pb-3 border-b border-white/10">
+                    <h3 className="font-bold text-sm md:text-base mb-1 cursor-pointer hover:text-purple-400 transition-colors" onClick={() => (window.location.href = `/cinema/${cinema.id}`)}>{cinema.name}</h3>
+                    <div className="flex items-center gap-2 text-[11px] md:text-xs text-gray-400 mb-2">
                       <Navigation className="w-3 h-3" /><span>{cinema.distance?.toFixed(1)} км</span>
                       <span>•</span>
                       <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" /><span>{cinema.rating}</span>
                     </div>
                     <div className="flex gap-1 flex-wrap">
                       {(cinema.facilities ?? []).slice(0, 3).map((facility, idx) => (
-                        <span key={`${facility}-${idx}`} className="px-2 py-0.5 liquid-gradient-subtle text-purple-300 rounded text-xs">{facility}</span>
+                        <span key={`${facility}-${idx}`} className="px-2 py-0.5 liquid-gradient-subtle text-purple-300 rounded text-[10px] md:text-xs">{facility}</span>
                       ))}
                     </div>
                   </div>
-                  <div className="flex-1 space-y-2 mb-3">
+                  <div className="flex-1 space-y-2 mb-2 md:mb-3">
                     {Object.entries(movieGroups).slice(0, 3).map(([movieId, movieSessions]) => {
                       const movie = movies.find((m) => m.id === Number(movieId));
                       if (!movie) return null;
@@ -491,29 +557,29 @@ export default function Home() {
                       );
                     })}
                   </div>
-                  <button onClick={() => (window.location.href = `/cinema/${cinema.id}`)} className="w-full py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1">
-                    Полное расписание <ChevronRight className="w-4 h-4" />
+                  <button onClick={() => (window.location.href = `/cinema/${cinema.id}`)} className="w-full py-2 md:py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center justify-center gap-1">
+                    Полное расписание <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
                   </button>
                 </div>
               ))}
             </div>
 
             {remainingCinemas.length > 0 && (
-              <div className="glass-strong rounded-2xl p-4">
-                <h3 className="font-bold mb-3 text-sm text-gray-300">Другие кинотеатры</h3>
+              <div className="glass-strong rounded-2xl p-3 md:p-4">
+                <h3 className="font-bold mb-2 md:mb-3 text-xs md:text-sm text-gray-300">Другие кинотеатры</h3>
                 <Slider dots={false} infinite={false} speed={500} slidesToShow={Math.min(3, remainingCinemas.length)} slidesToScroll={1} responsive={[{ breakpoint: 1024, settings: { slidesToShow: Math.min(2, remainingCinemas.length) } }, { breakpoint: 640, settings: { slidesToShow: 1 } }]} className="cinema-carousel">
                   {remainingCinemas.map(({ cinema, movieGroups, sessions: cinemaSessions }) => (
                     <div key={cinema.id} className="px-2">
-                      <div className="glass rounded-xl p-4 h-full">
-                        <div className="mb-3 pb-3 border-b border-white/10">
-                          <h3 className="font-bold text-sm mb-1 cursor-pointer hover:text-purple-400 transition-colors truncate" onClick={() => (window.location.href = `/cinema/${cinema.id}`)}>{cinema.name}</h3>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                      <div className="glass rounded-xl p-3 md:p-4 h-full">
+                        <div className="mb-2 md:mb-3 pb-2 md:pb-3 border-b border-white/10">
+                          <h3 className="font-bold text-xs md:text-sm mb-1 cursor-pointer hover:text-purple-400 transition-colors truncate" onClick={() => (window.location.href = `/cinema/${cinema.id}`)}>{cinema.name}</h3>
+                          <div className="flex items-center gap-2 text-[10px] md:text-xs text-gray-400 mb-2">
                             <Navigation className="w-3 h-3" /><span>{cinema.distance?.toFixed(1)}км</span>
                             <span>•</span>
                             <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" /><span>{cinema.rating}</span>
                           </div>
                         </div>
-                        <div className="space-y-2 mb-3">
+                        <div className="space-y-2 mb-2 md:mb-3">
                           {Object.keys(movieGroups).slice(0, 2).map((movieId) => {
                             const movie = movies.find((m) => m.id === Number(movieId));
                             if (!movie) return null;
@@ -523,7 +589,7 @@ export default function Home() {
                               </div>
                             );
                           })}
-                          <p className="text-xs text-gray-400">{Object.keys(movieGroups).length} фильмов • {cinemaSessions.length} сеансов</p>
+                          <p className="text-[10px] md:text-xs text-gray-400">{Object.keys(movieGroups).length} фильмов • {cinemaSessions.length} сеансов</p>
                         </div>
                         <button onClick={() => (window.location.href = `/cinema/${cinema.id}`)} className="w-full py-2 glass glass-hover rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1">
                           Расписание <ChevronRight className="w-3 h-3" />
@@ -533,8 +599,8 @@ export default function Home() {
                   ))}
                 </Slider>
                 {cinemasWithSessions.length > 6 && (
-                  <button onClick={() => setShowAllCinemasModal(true)} className="w-full mt-4 py-3 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2">
-                    Показать все {cinemasWithSessions.length} кинотеатров <ChevronRight className="w-4 h-4" />
+                  <button onClick={() => setShowAllCinemasModal(true)} className="w-full mt-3 md:mt-4 py-2.5 md:py-3 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                    Показать все {cinemasWithSessions.length} кинотеатров <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
                   </button>
                 )}
               </div>
@@ -546,40 +612,46 @@ export default function Home() {
       {/* All Cinemas Modal */}
       <AnimatePresence>
         {showAllCinemasModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-strong rounded-2xl p-6 max-w-6xl w-full max-h-[80vh] overflow-y-auto custom-scrollbar">
-              <div className="flex items-center justify-between mb-6 -mt-6 -mx-6 px-6 py-4 rounded-t-2xl border-b border-white/10" style={{ background: "rgba(10, 10, 15, 0.98)", backdropFilter: "blur(40px)" }}>
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 100, scale: 0.95 }} 
+              animate={{ opacity: 1, y: 0, scale: 1 }} 
+              exit={{ opacity: 0, y: 100, scale: 0.95 }} 
+              transition={{ type: "spring", damping: 25 }}
+              className="glass-strong rounded-t-3xl md:rounded-2xl p-4 md:p-6 w-full max-w-6xl max-h-[85vh] md:max-h-[80vh] overflow-y-auto custom-scrollbar"
+            >
+              <div className="flex items-center justify-between mb-4 md:mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Все кинотеатры в {selectedCity}</h2>
-                  <p className="text-sm text-gray-400 mt-1">{cinemasWithSessions.length} кинотеатров</p>
+                  <h2 className="text-xl md:text-2xl font-bold">Все кинотеатры в {selectedCity}</h2>
+                  <p className="text-xs md:text-sm text-gray-400 mt-1">{cinemasWithSessions.length} кинотеатров</p>
                 </div>
-                <button onClick={() => setShowAllCinemasModal(false)} className="w-10 h-10 rounded-full glass glass-hover flex items-center justify-center transition-all hover:scale-110"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowAllCinemasModal(false)} className="w-9 h-9 md:w-10 md:h-10 rounded-full glass glass-hover flex items-center justify-center transition-all hover:scale-110"><X className="w-4 h-4 md:w-5 md:h-5" /></button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                 {cinemasWithSessions.map(({ cinema, sessions: cinemaSessions, movieGroups }) => (
-                  <div key={cinema.id} className="glass rounded-xl p-4 flex flex-col h-full hover:bg-white/5 transition-all">
-                    <div className="mb-3 pb-3 border-b border-white/10">
-                      <h3 className="font-bold mb-1 cursor-pointer hover:text-purple-400 transition-colors" onClick={() => (window.location.href = `/cinema/${cinema.id}`)}>{cinema.name}</h3>
-                      <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                  <div key={cinema.id} className="glass rounded-xl p-3 md:p-4 flex flex-col h-full hover:bg-white/5 transition-all">
+                    <div className="mb-2 md:mb-3 pb-2 md:pb-3 border-b border-white/10">
+                      <h3 className="font-bold text-sm md:text-base mb-1 cursor-pointer hover:text-purple-400 transition-colors" onClick={() => { setShowAllCinemasModal(false); window.location.href = `/cinema/${cinema.id}`; }}>{cinema.name}</h3>
+                      <div className="flex items-center gap-2 text-[11px] md:text-xs text-gray-400 mb-2">
                         <Navigation className="w-3 h-3" /><span>{cinema.distance?.toFixed(1)} км</span>
                         <span>•</span>
                         <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" /><span>{cinema.rating}</span>
                       </div>
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm text-gray-400 mb-2">{Object.keys(movieGroups).length} фильмов • {cinemaSessions.length} сеансов</p>
+                      <p className="text-xs md:text-sm text-gray-400 mb-2">{Object.keys(movieGroups).length} фильмов • {cinemaSessions.length} сеансов</p>
                       <div className="space-y-1">
                         {Object.keys(movieGroups).slice(0, 4).map((movieId) => {
                           const movie = movies.find((m) => m.id === Number(movieId));
                           if (!movie) return null;
                           return (
-                            <div key={movieId} className="text-xs text-gray-400 truncate cursor-pointer hover:text-purple-400 transition-colors" onClick={() => (window.location.href = `/movie/${movie.id}`)}>• {movie.title}</div>
+                            <div key={movieId} className="text-[11px] md:text-xs text-gray-400 truncate cursor-pointer hover:text-purple-400 transition-colors" onClick={() => { setShowAllCinemasModal(false); window.location.href = `/movie/${movie.id}`; }}>• {movie.title}</div>
                           );
                         })}
                       </div>
                     </div>
-                    <button onClick={() => (window.location.href = `/cinema/${cinema.id}`)} className="w-full mt-3 py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1">
-                      Расписание <ChevronRight className="w-4 h-4" />
+                    <button onClick={() => { setShowAllCinemasModal(false); window.location.href = `/cinema/${cinema.id}`; }} className="w-full mt-2 md:mt-3 py-2 md:py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-xs md:text-sm font-semibold transition-all flex items-center justify-center gap-1">
+                      Расписание <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
                     </button>
                   </div>
                 ))}
@@ -590,30 +662,30 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Hot Sessions Section */}
-      <section id="showtimes" className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-        <div className="glass-strong rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-6">
+      <section id="showtimes" className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 mb-8 md:mb-12">
+        <div className="glass-strong rounded-2xl p-4 md:p-6">
+          <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
             <div className="relative flex-shrink-0">
               <div className="absolute -inset-2 rounded-full bg-orange-500/25 blur-md animate-pulse" />
-              <Flame className="relative w-6 h-6 text-orange-400" />
+              <Flame className="relative w-5 h-5 md:w-6 md:h-6 text-orange-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Горящие сеансы</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Скоро начинаются · Ограниченное количество мест</p>
+              <h2 className="text-lg md:text-xl font-bold">Горящие сеансы</h2>
+              <p className="text-[10px] md:text-xs text-gray-400 mt-0.5">Скоро начинаются · Ограниченное количество мест</p>
             </div>
             {hotSessions.length > 0 && (
-              <span className="ml-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-500/15 border border-orange-500/30 text-orange-300 animate-pulse">{hotSessions.length}</span>
+              <span className="ml-1 px-2 md:px-2.5 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-bold bg-orange-500/15 border border-orange-500/30 text-orange-300 animate-pulse">{hotSessions.length}</span>
             )}
           </div>
 
           {hotSessions.length === 0 ? (
-            <div className="py-10 text-center">
-              <Flame className="w-10 h-10 text-gray-600 mx-auto mb-3 opacity-40" />
-              <p className="text-gray-400 text-sm font-medium">Горящих сеансов пока нет</p>
+            <div className="py-6 md:py-10 text-center">
+              <Flame className="w-8 h-8 md:w-10 md:h-10 text-gray-600 mx-auto mb-2 md:mb-3 opacity-40" />
+              <p className="text-gray-400 text-xs md:text-sm font-medium">Горящих сеансов пока нет</p>
             </div>
           ) : (
             <div className="overflow-x-auto scrollbar-hide -mx-3 px-3 pb-2">
-              <div className="flex gap-3" style={{ width: "max-content" }}>
+              <div className="flex gap-2 md:gap-3" style={{ width: "max-content" }}>
                 {hotSessions.map(({ session, movie, cinema, badges, minutesUntilStart, seatsPercent }) => {
                   const isLastTickets = badges.includes("last-tickets");
                   const isAlmostSoldOut = badges.includes("almost-sold-out");
@@ -628,47 +700,47 @@ export default function Home() {
                     <motion.button
                       key={session.id}
                       onClick={() => (window.location.href = `/movie/${session.movie_id}/seats?session=${session.id}`)}
-                      className={`w-[252px] flex-shrink-0 glass rounded-xl overflow-hidden text-left border transition-all ${borderGlow}`}
+                      className={`w-[220px] sm:w-[252px] flex-shrink-0 glass rounded-xl overflow-hidden text-left border transition-all ${borderGlow}`}
                       whileHover={{ y: -4, scale: 1.02 }}
                       transition={{ type: "spring", stiffness: 400, damping: 25 }}
                     >
-                      <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+                      <div className="flex flex-wrap gap-1 md:gap-1.5 px-2 md:px-3 pt-2 md:pt-3">
                         {isLastTickets && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 border border-red-500/40 rounded-full text-[10px] font-bold text-red-400 uppercase tracking-wide">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" /> Последние билеты
+                          <span className="flex items-center gap-1 px-1.5 md:px-2 py-0.5 bg-red-500/20 border border-red-500/40 rounded-full text-[9px] md:text-[10px] font-bold text-red-400 uppercase tracking-wide">
+                            <span className="w-1 md:w-1.5 h-1 md:h-1.5 rounded-full bg-red-400 animate-pulse inline-block" /> Последние билеты
                           </span>
                         )}
                         {!isLastTickets && isAlmostSoldOut && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 rounded-full text-[10px] font-bold text-orange-400 uppercase tracking-wide">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block" /> Почти нет мест
+                          <span className="flex items-center gap-1 px-1.5 md:px-2 py-0.5 bg-orange-500/20 border border-orange-500/40 rounded-full text-[9px] md:text-[10px] font-bold text-orange-400 uppercase tracking-wide">
+                            <span className="w-1 md:w-1.5 h-1 md:h-1.5 rounded-full bg-orange-400 animate-pulse inline-block" /> Почти нет мест
                           </span>
                         )}
                         {isStartingSoon && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded-full text-[10px] font-bold text-amber-400 uppercase tracking-wide">
-                            <Timer className="w-2.5 h-2.5" /> {timeLabel}
+                          <span className="flex items-center gap-1 px-1.5 md:px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded-full text-[9px] md:text-[10px] font-bold text-amber-400 uppercase tracking-wide">
+                            <Timer className="w-2 md:w-2.5 h-2 md:h-2.5" /> {timeLabel}
                           </span>
                         )}
                       </div>
-                      <div className="p-3 flex gap-3">
-                        <div className="w-14 h-[84px] rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
+                      <div className="p-2 md:p-3 flex gap-2 md:gap-3">
+                        <div className="w-12 h-[72px] md:w-14 md:h-[84px] rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
                           {movie?.poster_url ? (
                             <img src={movie.poster_url} alt={movie.title} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full bg-white/5 flex items-center justify-center"><Film className="w-5 h-5 text-gray-600" /></div>
+                            <div className="w-full h-full bg-white/5 flex items-center justify-center"><Film className="w-4 h-4 md:w-5 md:h-5 text-gray-600" /></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-sm leading-tight truncate mb-0.5">{movie?.title ?? "—"}</h4>
-                          <p className="text-[11px] text-gray-400 truncate mb-2">{cinema?.name ?? "—"}</p>
-                          <div className="flex items-center justify-between mb-2.5">
-                            <span className="text-purple-300 font-bold text-base">{session.time}</span>
-                            <span className="text-xs text-gray-400">{formatRub(session.price)}</span>
+                          <h4 className="font-bold text-xs md:text-sm leading-tight truncate mb-0.5">{movie?.title ?? "—"}</h4>
+                          <p className="text-[10px] md:text-[11px] text-gray-400 truncate mb-1 md:mb-2">{cinema?.name ?? "—"}</p>
+                          <div className="flex items-center justify-between mb-1.5 md:mb-2.5">
+                            <span className="text-purple-300 font-bold text-sm md:text-base">{session.time}</span>
+                            <span className="text-[10px] md:text-xs text-gray-400">{formatRub(session.price)}</span>
                           </div>
                           <div>
-                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-1 md:h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div className={`h-full rounded-full ${isLastTickets ? "bg-gradient-to-r from-red-600 to-red-400" : isAlmostSoldOut ? "bg-gradient-to-r from-orange-600 to-orange-400" : "bg-gradient-to-r from-emerald-600 to-emerald-400"}`} style={{ width: `${Math.min(seatsPercent, 100)}%` }} />
                             </div>
-                            <p className={`text-[10px] mt-1 font-medium ${isLastTickets ? "text-red-400" : isAlmostSoldOut ? "text-orange-400" : "text-gray-400"}`}>{Math.round(seatsPercent)}% мест осталось</p>
+                            <p className={`text-[9px] md:text-[10px] mt-0.5 md:mt-1 font-medium ${isLastTickets ? "text-red-400" : isAlmostSoldOut ? "text-orange-400" : "text-gray-400"}`}>{Math.round(seatsPercent)}% мест осталось</p>
                           </div>
                         </div>
                       </div>
@@ -682,29 +754,29 @@ export default function Home() {
       </section>
 
       {/* Offers Section */}
-      <section id="offers" className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="glass-strong rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <Zap className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-xl font-bold">Специальные предложения</h2>
+      <section id="offers" className="max-w-[1600px] mx-auto px-3 md:px-4 lg:px-8 pb-8 md:pb-12">
+        <div className="glass-strong rounded-2xl p-4 md:p-6">
+          <div className="flex items-center gap-2 mb-4 md:mb-5">
+            <Zap className="w-4 h-4 md:w-5 md:h-5 text-yellow-400" />
+            <h2 className="text-lg md:text-xl font-bold">Специальные предложения</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="relative glass rounded-xl p-6 overflow-hidden group hover:scale-105 transition-transform cursor-pointer">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+            <div className="relative glass rounded-xl p-4 md:p-6 overflow-hidden group hover:scale-105 transition-transform cursor-pointer">
+              <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-purple-500/20 rounded-full blur-3xl" />
               <div className="relative">
-                <div className="text-xs text-purple-400 font-semibold mb-2">ВЫХОДНЫЕ</div>
-                <h3 className="text-lg font-bold mb-2">1+1 бесплатно</h3>
-                <p className="text-sm text-gray-400 mb-3">На все сеансы выходного дня.</p>
-                <span className="text-xs liquid-gradient-subtle text-purple-300 px-3 py-1 rounded-full inline-block">Действует до воскресенья</span>
+                <div className="text-[10px] md:text-xs text-purple-400 font-semibold mb-1 md:mb-2">ВЫХОДНЫЕ</div>
+                <h3 className="text-base md:text-lg font-bold mb-1 md:mb-2">1+1 бесплатно</h3>
+                <p className="text-xs md:text-sm text-gray-400 mb-2 md:mb-3">На все сеансы выходного дня.</p>
+                <span className="text-[10px] md:text-xs liquid-gradient-subtle text-purple-300 px-2 md:px-3 py-0.5 md:py-1 rounded-full inline-block">Действует до воскресенья</span>
               </div>
             </div>
-            <div className="relative glass rounded-xl p-6 overflow-hidden group hover:scale-105 transition-transform cursor-pointer">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/20 rounded-full blur-3xl" />
+            <div className="relative glass rounded-xl p-4 md:p-6 overflow-hidden group hover:scale-105 transition-transform cursor-pointer">
+              <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-pink-500/20 rounded-full blur-3xl" />
               <div className="relative">
-                <div className="text-xs text-pink-400 font-semibold mb-2">СТУДЕНЧЕСКАЯ СКИДКА</div>
-                <h3 className="text-lg font-bold mb-2">30% скидка</h3>
-                <p className="text-sm text-gray-400 mb-3">Предъявите студенческий билет в кассе.</p>
-                <span className="text-xs liquid-gradient-subtle text-pink-300 px-3 py-1 rounded-full inline-block">Постоянная акция</span>
+                <div className="text-[10px] md:text-xs text-pink-400 font-semibold mb-1 md:mb-2">СТУДЕНЧЕСКАЯ СКИДКА</div>
+                <h3 className="text-base md:text-lg font-bold mb-1 md:mb-2">30% скидка</h3>
+                <p className="text-xs md:text-sm text-gray-400 mb-2 md:mb-3">Предъявите студенческий билет в кассе.</p>
+                <span className="text-[10px] md:text-xs liquid-gradient-subtle text-pink-300 px-2 md:px-3 py-0.5 md:py-1 rounded-full inline-block">Постоянная акция</span>
               </div>
             </div>
           </div>

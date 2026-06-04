@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Film, User, LogOut, Ticket, Settings, Shield, History, ChevronDown, MapPin, Sun, Moon, Check, Search, X } from "lucide-react";
+import { Film, User, LogOut, Ticket, Settings, Shield, History, ChevronDown, MapPin, Sun, Moon, Check, Search, X, Menu } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useCity } from "../contexts/CityContext";
 import AuthModal from "./AuthModal";
@@ -17,14 +17,13 @@ const sectionNames: Record<string, string> = {
 
 export default function Navbar() {
   const location = useLocation();
-  // ИСПРАВЛЕНО: убрали isAuthenticated, так как его нет в контексте. 
-  // Используем user для проверки авторизации.
   const { user, logout } = useAuth();
   const { selectedCity, setSelectedCity } = useCity();
   
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [citySearchQuery, setCitySearchQuery] = useState("");
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeSection, setActiveSection] = useState('movies');
@@ -32,16 +31,15 @@ export default function Navbar() {
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const cityDropdownRef = useRef<HTMLDivElement>(null);
   const citySearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   
   const isHomePage = location.pathname === '/';
   
-  // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('vite-ui-theme') as 'dark' | 'light' || 'dark';
     setTheme(savedTheme);
   }, []);
   
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -51,25 +49,26 @@ export default function Navbar() {
         setShowCityDropdown(false);
         setCitySearchQuery("");
       }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setShowMobileMenu(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
   
-  // Focus search input when city dropdown opens
   useEffect(() => {
     if (showCityDropdown && citySearchInputRef.current) {
       setTimeout(() => citySearchInputRef.current?.focus(), 100);
     }
   }, [showCityDropdown]);
   
-  // Detect active section on scroll (only on homepage)
   useEffect(() => {
     if (!isHomePage) return;
     
     const handleScroll = () => {
-      const scrollPosition = window.scrollY + 200; // Offset for navbar
+      const scrollPosition = window.scrollY + 200;
       
       for (const section of sections) {
         const element = document.getElementById(section);
@@ -84,14 +83,20 @@ export default function Navbar() {
     };
     
     window.addEventListener('scroll', handleScroll);
-    handleScroll(); // Check initial position
+    handleScroll();
     
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isHomePage]);
+
+  // Закрываем мобильное меню при смене роута
+  useEffect(() => {
+    setShowMobileMenu(false);
+  }, [location.pathname]);
   
   const handleLogout = () => {
     logout();
     setShowProfileMenu(false);
+    setShowMobileMenu(false);
   };
   
   const handleCitySelect = (city: string) => {
@@ -104,15 +109,13 @@ export default function Navbar() {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     localStorage.setItem('vite-ui-theme', newTheme);
-    
-    // Dispatch custom event to notify Root component
     window.dispatchEvent(new Event('themeChange'));
   };
   
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
-      const offset = 80; // Account for fixed navbar
+      const offset = 80;
       const elementPosition = element.getBoundingClientRect().top + window.scrollY;
       const offsetPosition = elementPosition - offset;
       
@@ -121,10 +124,10 @@ export default function Navbar() {
         behavior: 'smooth'
       });
       setActiveSection(sectionId);
+      setShowMobileMenu(false);
     }
   };
   
-  // Filter cities based on search query
   const filteredCities = cities.filter(city => 
     city.toLowerCase().includes(citySearchQuery.toLowerCase())
   );
@@ -135,28 +138,27 @@ export default function Navbar() {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-[1400px]"
+        className="fixed top-2 md:top-4 left-2 right-2 md:left-4 md:right-4 z-50 mx-auto max-w-[1400px]"
       >
         <div className="glass-strong rounded-2xl shadow-2xl">
-          {/* Subtle top glow */}
           <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 rounded-2xl blur-lg -z-10" />
           
-          <div className="px-6 h-16 flex items-center justify-between gap-8">
-            {/* Logo - Left */}
-            <Link to="/" className="flex items-center gap-3 group flex-shrink-0">
+          <div className="px-3 md:px-6 h-14 md:h-16 flex items-center justify-between gap-2 md:gap-8">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2 md:gap-3 group flex-shrink-0">
               <div className="relative">
                 <div className="absolute inset-0 bg-purple-500/40 blur-xl group-hover:bg-purple-500/60 transition-all" />
-                <div className="relative w-9 h-9 rounded-xl glass flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Film className="w-4.5 h-4.5 text-purple-400" />
+                <div className="relative w-8 h-8 md:w-9 md:h-9 rounded-xl glass flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Film className="w-4 h-4 md:w-4.5 md:h-4.5 text-purple-400" />
                 </div>
               </div>
-              <span className="text-xl font-bold text-white">
+              <span className="text-lg md:text-xl font-bold text-white">
                 Seatify
               </span>
             </Link>
             
-            {/* Center - Anchor Navigation (Only on Homepage) */}
-            {isHomePage ? (
+            {/* Desktop Navigation */}
+            {isHomePage && (
               <div className="hidden md:flex items-center gap-2 flex-1 justify-center">
                 {sections.map((section) => (
                   <button
@@ -172,7 +174,6 @@ export default function Navbar() {
                       {sectionNames[section]}
                     </span>
                     
-                    {/* Glowing underline for active section */}
                     {activeSection === section && (
                       <motion.div 
                         layoutId="navUnderline"
@@ -181,31 +182,39 @@ export default function Navbar() {
                       />
                     )}
                     
-                    {/* Hover glow effect */}
                     <div className={`absolute inset-0 rounded-xl bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity ${
                       activeSection === section ? 'opacity-100' : ''
                     }`} />
                   </button>
                 ))}
               </div>
-            ) : (
-              <div className="flex-1" />
             )}
             
-            {/* Right Side - Controls */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {/* City Selector */}
-              <div className="relative" ref={cityDropdownRef}>
+            {!isHomePage && <div className="hidden md:flex flex-1" />}
+            
+            {/* Mobile Menu Button */}
+            {isHomePage && (
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden p-2 glass rounded-lg active:scale-95 transition-transform"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            
+            {/* Right Side Controls */}
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+              {/* City Selector - скрыт на очень маленьких экранах */}
+              <div className="relative hidden sm:block" ref={cityDropdownRef}>
                 <button
                   onClick={() => setShowCityDropdown(!showCityDropdown)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full glass hover:bg-white/10 transition-all group"
+                  className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 rounded-full glass hover:bg-white/10 transition-all group"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="text-sm font-medium">{selectedCity}</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCityDropdown ? 'rotate-180' : ''}`} />
+                  <MapPin className="w-3 h-3 md:w-3.5 md:h-3.5 text-cyan-400" />
+                  <span className="text-xs md:text-sm font-medium">{selectedCity}</span>
+                  <ChevronDown className={`w-3 h-3 md:w-3.5 md:h-3.5 transition-transform ${showCityDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 
-                {/* City Dropdown */}
                 <AnimatePresence>
                   {showCityDropdown && (
                     <motion.div
@@ -219,7 +228,6 @@ export default function Navbar() {
                         backdropFilter: 'blur(40px)',
                       }}
                     >
-                      {/* Search Input */}
                       <div className="p-3 bg-black/30 border-b border-white/10">
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -245,7 +253,6 @@ export default function Navbar() {
                         </div>
                       </div>
                       
-                      {/* City List */}
                       <div className="max-h-64 overflow-y-auto p-2">
                         {filteredCities.length > 0 ? (
                           filteredCities.map((city) => (
@@ -276,15 +283,13 @@ export default function Navbar() {
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="relative w-14 h-7 rounded-full glass hover:bg-white/10 transition-all overflow-hidden group"
+                className="relative w-12 md:w-14 h-6 md:h-7 rounded-full glass hover:bg-white/10 transition-all overflow-hidden group"
               >
-                {/* Permanent Track Icons */}
                 <div className="absolute inset-0 flex items-center justify-between px-1.5">
-                  <Moon className="w-4 h-4 text-gray-400" />
-                  <Sun className="w-4 h-4 text-gray-400" />
+                  <Moon className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
+                  <Sun className="w-3 h-3 md:w-4 md:h-4 text-gray-400" />
                 </div>
 
-                {/* Moving Knob */}
                 <motion.div
                   className="absolute inset-0.5 rounded-full liquid-gradient"
                   animate={{ x: theme === 'dark' ? 0 : 27 }}
@@ -292,17 +297,17 @@ export default function Navbar() {
                   style={{ width: '22px' }}
                 >
                   <div className="relative w-full h-full flex items-center justify-center">
-                    <Moon className={`absolute w-4 h-4 transition-all ${theme === 'dark' ? 'opacity-100 text-white' : 'opacity-0'}`} />
-                    <Sun className={`absolute w-4 h-4 transition-all ${theme === 'light' ? 'opacity-100 text-white' : 'opacity-0'}`} />
+                    <Moon className={`absolute w-3 h-3 md:w-4 md:h-4 transition-all ${theme === 'dark' ? 'opacity-100 text-white' : 'opacity-0'}`} />
+                    <Sun className={`absolute w-3 h-3 md:w-4 md:h-4 transition-all ${theme === 'light' ? 'opacity-100 text-white' : 'opacity-0'}`} />
                   </div>
                 </motion.div>
               </button>
               
-              {/* Profile or Sign In - ИСПРАВЛЕНО: проверка через !user */}
+              {/* Profile or Sign In */}
               {!user ? (
                 <button
                   onClick={() => setShowAuthModal(true)}
-                  className="px-4 py-2 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-sm font-semibold transition-all duration-300"
+                  className="px-3 md:px-4 py-1.5 md:py-2 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl text-xs md:text-sm font-semibold transition-all duration-300"
                 >
                   Войти
                 </button>
@@ -310,15 +315,14 @@ export default function Navbar() {
                 <div className="relative" ref={profileMenuRef}>
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full glass hover:bg-white/10 transition-all"
+                    className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 rounded-full glass hover:bg-white/10 transition-all"
                   >
-                    <div className="w-7 h-7 liquid-gradient rounded-full flex items-center justify-center">
-                      <User className="w-3.5 h-3.5" />
+                    <div className="w-6 h-6 md:w-7 md:h-7 liquid-gradient rounded-full flex items-center justify-center">
+                      <User className="w-3 h-3 md:w-3.5 md:h-3.5" />
                     </div>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`hidden sm:block w-3 h-3 md:w-3.5 md:h-3.5 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`} />
                   </button>
                   
-                  {/* Profile Dropdown */}
                   <AnimatePresence>
                     {showProfileMenu && (
                       <motion.div
@@ -332,7 +336,6 @@ export default function Navbar() {
                           backdropFilter: 'blur(40px)',
                         }}
                       >
-                        {/* User Info */}
                         <div className="p-4 border-b border-white/10 bg-black/20">
                           <p className="font-semibold text-sm text-white">{user?.name || 'Пользователь'}</p>
                           <p className="text-xs text-gray-400 truncate">{user?.email}</p>
@@ -344,7 +347,6 @@ export default function Navbar() {
                           )}
                         </div>
                         
-                        {/* Menu Items */}
                         <div className="py-2">
                           <Link
                             to="/profile"
@@ -376,7 +378,6 @@ export default function Navbar() {
                             <span>Настройки</span>
                           </Link>
                           
-                          {/* Admin Access */}
                           {user?.role === 'admin' && (
                             <>
                               <div className="my-2 border-t border-white/10" />
@@ -393,7 +394,6 @@ export default function Navbar() {
                           )}
                         </div>
                         
-                        {/* Logout */}
                         <div className="border-t border-white/10">
                           <button
                             onClick={handleLogout}
@@ -412,9 +412,83 @@ export default function Navbar() {
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {showMobileMenu && isHomePage && (
+            <motion.div
+              ref={mobileMenuRef}
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="mt-2 md:hidden glass-strong rounded-xl overflow-hidden border border-white/10"
+            >
+              {/* City Selector in Mobile Menu */}
+              <div className="p-3 border-b border-white/10">
+                <button
+                  onClick={() => setShowCityDropdown(!showCityDropdown)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 glass rounded-lg active:scale-98 transition-transform"
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm font-medium">{selectedCity}</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showCityDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showCityDropdown && (
+                  <div className="mt-2 p-2 glass rounded-lg">
+                    <div className="relative mb-2">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={citySearchQuery}
+                        onChange={(e) => setCitySearchQuery(e.target.value)}
+                        placeholder="Поиск городов..."
+                        className="w-full pl-10 pr-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none border border-white/10"
+                        style={{ background: 'rgba(20, 20, 30, 0.8)' }}
+                      />
+                    </div>
+                    {filteredCities.map((city) => (
+                      <button
+                        key={city}
+                        onClick={() => handleCitySelect(city)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition-all text-left"
+                      >
+                        <span className={selectedCity === city ? 'text-purple-300 font-medium' : 'text-white'}>
+                          {city}
+                        </span>
+                        {selectedCity === city && (
+                          <Check className="w-4 h-4 text-purple-400" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation Items */}
+              <div className="p-2">
+                {sections.map((section) => (
+                  <button
+                    key={section}
+                    onClick={() => scrollToSection(section)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      activeSection === section
+                        ? 'liquid-gradient text-white'
+                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {sectionNames[section]}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.nav>
       
-      {/* Auth Modal */}
       <AuthModal 
         isOpen={showAuthModal} 
         onClose={() => setShowAuthModal(false)} 
