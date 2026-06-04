@@ -18,7 +18,7 @@ interface Purchase {
   details?: string;
 }
 
-const API_URL = import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083';
+const API_URL = 'http://localhost:8082';
 
 export default function PurchaseHistory() {
   const { user, token } = useAuth();
@@ -35,7 +35,7 @@ export default function PurchaseHistory() {
       }
       
       try {
-        const response = await fetch(`${API_URL}/api/v1/bookings/user/${user?.id}`, {
+        const response = await fetch(`${API_URL}/bookings/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

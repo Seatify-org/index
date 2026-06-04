@@ -23,9 +23,9 @@ export interface Session {
   id: number;
   movie_id: number;
   hall_id: number;
-  cinema_id: number;
-  cinema_address: string;
-  cinema_city: string;
+  cinema_id?: number;
+  cinema_address?: string;
+  cinema_city?: string;
   start_time: string;
   base_price_cents: number;
   time?: string;
@@ -267,7 +267,12 @@ export const deleteHall = async (id: number): Promise<void> => {
 };
 
 // Sessions
-export const createSession = async (sessionData: Omit<Session, 'id' | 'time' | 'date' | 'price' | 'hall_name'>): Promise<Session> => {
+export const createSession = async (sessionData: {
+  movie_id: number;
+  hall_id: number;
+  start_time: string;
+  base_price_cents: number;
+}): Promise<Session> => {
   const response = await fetch(`${API_BASE_URL}/admin/sessions`, {
     method: 'POST',
     headers: {
@@ -276,23 +281,21 @@ export const createSession = async (sessionData: Omit<Session, 'id' | 'time' | '
     },
     body: JSON.stringify(sessionData)
   });
-  
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Ошибка создания сеанса: ${errorText}`);
   }
-  
-  const data = await response.json();
-  return {
-    ...data,
-    time: new Date(data.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-    date: new Date(data.start_time).toISOString().split('T')[0],
-    price: data.base_price_cents / 100,
-    hall_name: `Зал ${data.hall_id}`
-  };
+
+  return response.json();
 };
 
-export const updateSession = async (id: number, sessionData: Partial<Session>): Promise<Session> => {
+export const updateSession = async (id: number, sessionData: {
+  movie_id?: number;
+  hall_id?: number;
+  start_time?: string;
+  base_price_cents?: number;
+}): Promise<Session> => {
   const response = await fetch(`${API_BASE_URL}/admin/sessions/${id}`, {
     method: 'PUT',
     headers: {
@@ -301,20 +304,13 @@ export const updateSession = async (id: number, sessionData: Partial<Session>): 
     },
     body: JSON.stringify(sessionData)
   });
-  
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Ошибка обновления сеанса: ${errorText}`);
   }
-  
-  const data = await response.json();
-  return {
-    ...data,
-    time: new Date(data.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-    date: new Date(data.start_time).toISOString().split('T')[0],
-    price: data.base_price_cents / 100,
-    hall_name: `Зал ${data.hall_id}`
-  };
+
+  return response.json();
 };
 
 export const deleteSession = async (id: number): Promise<void> => {
@@ -326,5 +322,104 @@ export const deleteSession = async (id: number): Promise<void> => {
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Ошибка удаления сеанса: ${errorText}`);
+  }
+};
+
+
+// ========== BOOKING ENDPOINTS ==========
+
+export interface Booking {
+  id: number;
+  user_id: number;
+  session_id: number;
+  total_amount_cents: number;
+  payment_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  cancelled_at?: string;
+}
+
+export const fetchMyBookings = async (): Promise<Booking[]> => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    console.error('No token found');
+    return [];
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to fetch bookings:', errorText);
+      return [];
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    return [];
+  }
+};
+
+// ========== CINEMA ENDPOINTS ==========
+
+export const fetchCinemas = async (): Promise<Cinema[]> => {
+  try {
+    // Получаем все фильмы и их сеансы, чтобы собрать кинотеатры
+    const movies = await fetchMovies();
+    const allSessionsPromises = movies.map(m => fetchSessionsByMovie(m.id));
+    const sessionsArrays = await Promise.all(allSessionsPromises);
+    const allSessions = sessionsArrays.flat();
+    
+    // Собираем уникальные кинотеатры
+    const cinemaMap = new Map<number, Cinema>();
+    allSessions.forEach(s => {
+      if (s.cinema_id && !cinemaMap.has(s.cinema_id)) {
+        cinemaMap.set(s.cinema_id, {
+          id: s.cinema_id,
+          name: s.cinema_name || `Кинотеатр ${s.cinema_id}`,
+          address: s.cinema_address || 'Адрес уточняется',
+          city: s.cinema_city || 'Москва',
+        });
+      }
+    });
+    
+    return Array.from(cinemaMap.values());
+  } catch (error) {
+    console.error('Error fetching cinemas:', error);
+    return [];
+  }
+};
+
+export const fetchCinemaById = async (cinemaId: number): Promise<Cinema | null> => {
+  try {
+    const cinemas = await fetchCinemas();
+    return cinemas.find(c => c.id === cinemaId) || null;
+  } catch (error) {
+    console.error(`Error fetching cinema ${cinemaId}:`, error);
+    return null;
+  }
+};
+
+// Получить все сеансы для конкретного кинотеатра
+export const fetchSessionsByCinema = async (cinemaId: number): Promise<Session[]> => {
+  try {
+    const movies = await fetchMovies();
+    const allSessionsPromises = movies.map(m => fetchSessionsByMovie(m.id));
+    const sessionsArrays = await Promise.all(allSessionsPromises);
+    const allSessions = sessionsArrays.flat();
+    
+    return allSessions.filter(s => s.cinema_id === cinemaId);
+  } catch (error) {
+    console.error(`Error fetching sessions for cinema ${cinemaId}:`, error);
+    return [];
   }
 };

@@ -1,15 +1,36 @@
 import { useParams, useNavigate } from "react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "motion/react";
-import { MapPin, Star, Clock, Calendar, Navigation, ArrowLeft, Film, ChevronLeft, ChevronRight } from "lucide-react";
-import { fetchMovies, type Movie as ApiMovie } from "../services/api";
+import { MapPin, Star, Clock, Calendar, ArrowLeft, Film, ChevronLeft, ChevronRight } from "lucide-react";
+import { fetchMovies, fetchCinemaById, fetchSessionsByCinema, type Movie as ApiMovie, type Cinema as ApiCinema, type Session as ApiSession } from "../services/api";
 import { formatRub } from "../utils/formatRub";
+import { toast } from "sonner";
+
+interface ExtendedMovie extends ApiMovie {
+  genre: string[];
+  rating: number;
+  posterUrl: string;
+  duration: number;
+}
+
+interface ExtendedSession extends ApiSession {
+  time: string;
+  date: string;
+  price: number;
+  hallName: string;
+  movieId: number;
+  cinemaId: number;
+}
 
 export default function CinemaSchedule() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const cinema = getCinemaById(id || '');
   
+  const [cinema, setCinema] = useState<ApiCinema | null>(null);
+  const [movies, setMovies] = useState<ExtendedMovie[]>([]);
+  const [sessions, setSessions] = useState<ExtendedSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
   // Generate next 7 days for date selection
   const availableDates = useMemo(() => {
     const dates = [];
@@ -23,15 +44,72 @@ export default function CinemaSchedule() {
   }, []);
   
   const [selectedDate, setSelectedDate] = useState<string>(availableDates[0].toISOString().split('T')[0]);
+
+  // Загрузка данных
+  useEffect(() => {
+    const loadData = async () => {
+      if (!id) return;
+      setLoading(true);
+      
+      try {
+        const cinemaId = Number(id);
+        
+        // Загружаем кинотеатр, фильмы и сеансы параллельно
+        const [cinemaData, apiMovies, cinemaSessions] = await Promise.all([
+          fetchCinemaById(cinemaId),
+          fetchMovies(),
+          fetchSessionsByCinema(cinemaId),
+        ]);
+
+        if (!cinemaData) {
+          toast.error('Кинотеатр не найден');
+          navigate('/');
+          return;
+        }
+
+        setCinema(cinemaData);
+
+        // Расширяем данные фильмов
+        const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
+          ...m,
+          genre: m.genre || ["Фантастика", "Боевик"],
+          rating: m.rating || 7.5,
+          posterUrl: m.poster_url,
+          duration: m.duration_minutes || 120,
+        }));
+        setMovies(extendedMovies);
+
+        // Расширяем данные сеансов
+        const extendedSessions: ExtendedSession[] = cinemaSessions.map(s => ({
+          ...s,
+          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+          date: new Date(s.start_time).toISOString().split('T')[0],
+          price: s.base_price_cents / 100,
+          hallName: s.hall_name || `Зал ${s.hall_id}`,
+          movieId: s.movie_id,
+          cinemaId: s.cinema_id,
+        }));
+        setSessions(extendedSessions);
+
+      } catch (error) {
+        console.error("Failed to load cinema data", error);
+        toast.error("Не удалось загрузить данные кинотеатра");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [id, navigate]);
   
   // Get all sessions for this cinema on selected date
   const cinemaSessions = useMemo(() => {
-    return sessions.filter(s => s.cinemaId === id && s.date === selectedDate);
-  }, [id, selectedDate]);
+    return sessions.filter(s => s.cinemaId === Number(id) && s.date === selectedDate);
+  }, [id, selectedDate, sessions]);
   
   // Group sessions by movie
   const sessionsByMovie = useMemo(() => {
-    const grouped = new Map<string, typeof cinemaSessions>();
+    const grouped = new Map<number, ExtendedSession[]>();
     
     cinemaSessions.forEach((session) => {
       if (!grouped.has(session.movieId)) {
@@ -48,15 +126,14 @@ export default function CinemaSchedule() {
     return grouped;
   }, [cinemaSessions]);
   
-  // Generate time slots for the day (from 10:00 to 23:00)
-  const timeSlots = useMemo(() => {
-    const slots = [];
-    for (let hour = 10; hour <= 23; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
-    }
-    return slots;
-  }, []);
-  
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center">
+        <div className="text-purple-400 text-xl font-semibold animate-pulse">Загрузка расписания...</div>
+      </div>
+    );
+  }
+
   if (!cinema) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center">
@@ -74,18 +151,6 @@ export default function CinemaSchedule() {
     }
   };
   
-  const getTimePosition = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    const totalMinutes = (hours - 10) * 60 + minutes; // 10:00 is start
-    const totalDayMinutes = 13 * 60; // 10:00 to 23:00
-    return (totalMinutes / totalDayMinutes) * 100;
-  };
-  
-  const getSessionWidth = (duration: number) => {
-    const totalDayMinutes = 13 * 60;
-    return (duration / totalDayMinutes) * 100;
-  };
-  
   return (
     <div className="min-h-screen pt-24 pb-12">
       {/* Header */}
@@ -100,16 +165,6 @@ export default function CinemaSchedule() {
         
         {/* Cinema Info */}
         <div className="glass-strong rounded-2xl overflow-hidden">
-          {/* Banner Image */}
-          <div className="relative h-48">
-            <img 
-              src={cinema.imageUrl}
-              alt={cinema.name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#05050A] via-[#05050A]/60 to-transparent" />
-          </div>
-          
           <div className="p-6 space-y-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
@@ -117,165 +172,10 @@ export default function CinemaSchedule() {
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                   <div className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    <span>{cinema.address}</span>
-                  </div>
-                  {cinema.distance && (
-                    <div className="flex items-center gap-1">
-                      <Navigation className="w-4 h-4" />
-                      <span>{cinema.distance}km away</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                    <span className="text-white font-semibold">{cinema.rating}</span>
+                    <span>{cinema.address}, {cinema.city}</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {cinema.facilities.map(facility => (
-                  <span 
-                    key={facility}
-                    className="px-3 py-1.5 liquid-gradient-subtle text-purple-300 rounded-full text-xs font-medium"
-                  >
-                    {facility}
-                  </span>
-                ))}
-              </div>
-            </div>
-            
-            {/* Cinema Photos - Compact Row */}
-            {cinema.photos && (
-              <div className="grid grid-cols-3 gap-3">
-                {cinema.photos.hall && (
-                  <div className="group relative aspect-[4/3] rounded-xl overflow-hidden">
-                    <img 
-                      src={cinema.photos.hall}
-                      alt="Hall Interior"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <span className="absolute bottom-2 left-2 text-xs font-medium text-white/90 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Зал и места
-                    </span>
-                  </div>
-                )}
-                {cinema.photos.screen && (
-                  <div className="group relative aspect-[4/3] rounded-xl overflow-hidden">
-                    <img 
-                      src={cinema.photos.screen}
-                      alt="Screen View"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <span className="absolute bottom-2 left-2 text-xs font-medium text-white/90 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Экран
-                    </span>
-                  </div>
-                )}
-                {cinema.photos.facade && (
-                  <div className="group relative aspect-[4/3] rounded-xl overflow-hidden">
-                    <img 
-                      src={cinema.photos.facade}
-                      alt="Building Entrance"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <span className="absolute bottom-2 left-2 text-xs font-medium text-white/90 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Вход
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Infrastructure Tags & Cinema Ratings - Side by Side */}
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Infrastructure Tags */}
-              {cinema.infrastructureTags && cinema.infrastructureTags.length > 0 && (
-                <div className="glass rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-gray-400 mb-2">Краткая информация</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {cinema.infrastructureTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-1 text-xs font-medium rounded-lg glass-hover border border-white/10"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Cinema Quality Ratings */}
-              {cinema.cinemaRatings && (
-                <div className="glass rounded-xl p-4">
-                  <h3 className="text-sm font-semibold text-gray-400 mb-3">Качество кинотеатра</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-400">Звук</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < cinema.cinemaRatings!.sound
-                                ? 'text-cyan-400 fill-cyan-400'
-                                : 'text-gray-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-400">Комфорт</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < cinema.cinemaRatings!.comfort
-                                ? 'text-purple-400 fill-purple-400'
-                                : 'text-gray-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-400">Чистота</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < cinema.cinemaRatings!.cleanliness
-                                ? 'text-green-400 fill-green-400'
-                                : 'text-gray-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-400">Температура</span>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-3 h-3 ${
-                              i < cinema.cinemaRatings!.temperature
-                                ? 'text-orange-400 fill-orange-400'
-                                : 'text-gray-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -315,13 +215,13 @@ export default function CinemaSchedule() {
                     }`}
                   >
                     <div className="text-xs text-gray-400 mb-1">
-                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                      {date.toLocaleDateString('ru-RU', { weekday: 'short' })}
                     </div>
                     <div className="text-lg font-bold">
                       {date.getDate()}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {date.toLocaleDateString('en-US', { month: 'short' })}
+                      {date.toLocaleDateString('ru-RU', { month: 'short' })}
                     </div>
                     {isToday && (
                       <div className="text-xs text-purple-400 mt-1">Сегодня</div>
@@ -371,7 +271,7 @@ export default function CinemaSchedule() {
                     className="glass rounded-xl p-4"
                   >
                     <div className="flex gap-4">
-                      {/* Movie Poster - Compact */}
+                      {/* Movie Poster */}
                       <div 
                         className="w-20 h-28 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
                         onClick={() => navigate(`/movie/${movie.id}`)}
@@ -402,40 +302,23 @@ export default function CinemaSchedule() {
                           <span>•</span>
                           <div className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            <span>{movie.duration} min</span>
+                            <span>{movie.duration} мин</span>
                           </div>
                         </div>
                         
                         {/* Showtimes Grid */}
                         <div className="flex flex-wrap gap-2">
                           {movieSessions.map((session) => {
-                            // Determine booking button text based on integration level
-                            const integrationLevel = session.integrationLevel || cinema.integrationLevel;
-                            const buttonText = integrationLevel === 3 ? '📞' : session.time;
-                            
                             return (
                               <button
                                 key={session.id}
                                 onClick={() => {
-                                  // Route to appropriate booking page based on integration level
-                                  switch (integrationLevel) {
-                                    case 1:
-                                      navigate(`/movie/${movie.id}/seats?session=${session.id}`);
-                                      break;
-                                    case 2:
-                                      navigate(`/movie/${movie.id}/general-admission?session=${session.id}`);
-                                      break;
-                                    case 3:
-                                      navigate(`/movie/${movie.id}/phone-booking?session=${session.id}`);
-                                      break;
-                                    default:
-                                      navigate(`/movie/${movie.id}/seats?session=${session.id}`);
-                                  }
+                                  navigate(`/movie/${movie.id}/seats?session=${session.id}`);
                                 }}
                                 className="group relative"
                               >
                                 <div className="px-4 py-2 glass hover:liquid-gradient rounded-lg transition-all text-sm font-semibold flex flex-col items-center gap-0.5">
-                                  <span className="text-white">{buttonText}</span>
+                                  <span className="text-white">{session.time}</span>
                                   <span className="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">
                                     {session.hallName}
                                   </span>

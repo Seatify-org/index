@@ -110,19 +110,6 @@ export default function Checkout() {
     }
     return null;
   };
-
-  // Достаём user_id из JWT токена без сторонних библиотек
-  const getUserIdFromToken = (token: string): number | null => {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      console.log('JWT payload:', payload); // временно — чтобы увидеть точные поля
-      const id = payload.user_id ?? payload.sub ?? payload.id ?? null;
-      return id ? Number(id) : null;
-    } catch (e) {
-      console.error('Не удалось распарсить JWT:', e);
-      return null;
-    }
-  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,11 +133,6 @@ export default function Checkout() {
         return;
       }
 
-      const userId = getUserIdFromToken(token);
-      if (!userId || userId <= 0) {
-        throw new Error('Не удалось определить пользователя. Войдите снова.');
-      }
-
       const paymentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       const payload = {
@@ -160,14 +142,13 @@ export default function Checkout() {
         status: "pending"
       };
 
-      console.log("🚀 Отправка запроса:", payload, "X-User-ID:", userId);
+      console.log("🚀 Отправка запроса:", payload);
 
-      const response = await fetch(`/bookings`, {
+      const response = await fetch('http://localhost:8082/bookings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-          'X-User-ID': String(userId),  // ← бэкенд читает именно этот заголовок
         },
         body: JSON.stringify(payload),
       });

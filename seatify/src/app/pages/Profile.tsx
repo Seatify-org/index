@@ -5,12 +5,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { formatRub } from "../utils/formatRub";
-// Импортируем API функции (заглушки для истории бронирований, так как бэкенд может не иметь этого эндпоинта пока)
-import { fetchMovies, type Movie as ApiMovie } from "../services/api";
+import { fetchMovies, fetchMyBookings, fetchSessionById, type Movie as ApiMovie, type Booking } from "../services/api";
 
 type TabType = 'upcoming' | 'past';
 
-// Расширенные типы
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
   rating: number;
@@ -18,95 +16,88 @@ interface ExtendedMovie extends ApiMovie {
   duration: number;
 }
 
-interface MockSession {
+interface SessionInfo {
   id: number;
   time: string;
   date: string;
   hallName: string;
-}
-
-interface MockCinema {
-  id: number;
-  name: string;
-  address: string;
-}
-
-interface Booking {
-  id: string;
   movieId: number;
-  sessionId: number;
   cinemaId: number;
-  seats: string[];
-  totalPrice: number;
-  bookingDate: string;
-  status: 'active' | 'completed' | 'cancelled';
+  cinemaName: string;
+  cinemaAddress: string;
 }
 
-// Заглушка данных бронирований (в реальности должно приходить из API /api/v1/users/me/bookings)
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 'b1',
-    movieId: 1,
-    sessionId: 1,
-    cinemaId: 1,
-    seats: ['D5', 'D6'],
-    totalPrice: 899,
-    bookingDate: new Date().toISOString(),
-    status: 'active',
-  },
-  {
-    id: 'b2',
-    movieId: 2,
-    sessionId: 2,
-    cinemaId: 1,
-    seats: ['F7'],
-    totalPrice: 449,
-    bookingDate: new Date(Date.now() - 86400000 * 5).toISOString(),
-    status: 'completed',
-  },
-];
-
-// Заглушка сеансов и кинотеатров для привязки к бронированиям
-const MOCK_SESSIONS: Record<number, MockSession> = {
-  1: { id: 1, time: '19:30', date: new Date().toISOString(), hallName: 'Зал 1' },
-  2: { id: 2, time: '18:00', date: new Date(Date.now() - 86400000 * 5).toISOString(), hallName: 'Зал 2' },
-};
-
-const MOCK_CINEMAS: Record<number, MockCinema> = {
-  1: { id: 1, name: 'KARO 11 Oktyabr', address: 'Новый Арбат, 24' },
-};
+interface BookingWithDetails extends Booking {
+  movie?: ExtendedMovie;
+  session?: SessionInfo;
+}
 
 export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('upcoming');
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
   
-  // Состояния данных
   const [movies, setMovies] = useState<ExtendedMovie[]>([]);
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Загрузка фильмов для отображения в истории и рекомендациях
   useEffect(() => {
-    const loadMovies = async () => {
+    const loadData = async () => {
       try {
-        const apiMovies = await fetchMovies();
-        // Расширяем данные заглушками для совместимости с версткой
-        const extended = apiMovies.map(m => ({
+        const [apiMovies, apiBookings] = await Promise.all([
+          fetchMovies(),
+          fetchMyBookings()
+        ]);
+
+        const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
           ...m,
-          genre: ["Фантастика", "Боевик"],
-          rating: 7.5,
+          genre: m.genre || ["Фантастика", "Боевик"],
+          rating: m.rating || 7.5,
           posterUrl: m.poster_url,
           duration: m.duration_minutes || 120,
         }));
-        setMovies(extended);
+        setMovies(extendedMovies);
+
+        const bookingsWithDetails: BookingWithDetails[] = await Promise.all(
+          apiBookings.map(async (booking) => {
+            try {
+              const session = await fetchSessionById(booking.session_id);
+              if (!session) return { ...booking };
+
+              const movie = extendedMovies.find(m => m.id === session.movie_id);
+              
+              return {
+                ...booking,
+                session: {
+                  id: session.id,
+                  time: new Date(session.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+                  date: new Date(session.start_time).toISOString().split('T')[0],
+                  hallName: `Зал ${session.hall_id}`,
+                  movieId: session.movie_id,
+                  cinemaId: session.cinema_id,
+                  cinemaName: session.cinema_name || `Кинотеатр ${session.cinema_id}`,
+                  cinemaAddress: session.cinema_address || 'Адрес уточняется',
+                },
+                movie,
+              };
+            } catch (error) {
+              console.error(`Failed to load details for booking ${booking.id}:`, error);
+              return { ...booking };
+            }
+          })
+        );
+
+        setBookings(bookingsWithDetails);
       } catch (error) {
-        console.error("Failed to load movies for profile", error);
+        console.error("Failed to load profile data", error);
+        toast.error("Не удалось загрузить данные профиля");
       } finally {
         setLoading(false);
       }
     };
-    loadMovies();
+
+    loadData();
   }, []);
   
   const handleLogout = () => {
@@ -114,27 +105,23 @@ export default function Profile() {
     toast.success('Вы успешно вышли');
     navigate('/');
   };
+
+  const upcomingBookings = bookings.filter(b => 
+    b.status === 'pending' || b.status === 'confirmed'
+  );
   
-  const getBookingDetails = (booking: Booking) => {
-    const movie = movies.find((m) => m.id === booking.movieId);
-    const session = MOCK_SESSIONS[booking.sessionId];
-    const cinema = MOCK_CINEMAS[booking.cinemaId];
-    return { movie, session, cinema };
-  };
-  
-  const upcomingBookings = MOCK_BOOKINGS.filter(b => b.status === 'active');
-  const pastBookings = MOCK_BOOKINGS.filter(b => b.status === 'completed' || b.status === 'cancelled');
-  
+  const pastBookings = bookings.filter(b => 
+    b.status === 'completed' || b.status === 'cancelled'
+  );
+
   const currentBookings = activeTab === 'upcoming' ? upcomingBookings : pastBookings;
-  
-  // Get recommended movies
-  const bookedMovieIds = MOCK_BOOKINGS.map(b => b.movieId);
+
+  const bookedMovieIds = bookings.map(b => b.session?.movieId).filter(Boolean);
   const recommendedMovies = movies.filter(m => !bookedMovieIds.includes(m.id)).slice(0, 8);
-  
-  // Calculate stats
-  const totalWatchedMovies = MOCK_BOOKINGS.filter(b => b.status === 'completed').length;
-  const totalSpent = MOCK_BOOKINGS.reduce((sum, b) => sum + b.totalPrice, 0);
-  
+
+  const totalWatchedMovies = pastBookings.filter(b => b.status === 'completed').length;
+  const totalSpent = bookings.reduce((sum, b) => sum + (b.total_amount_cents / 100), 0);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#05050acc]">
@@ -148,7 +135,6 @@ export default function Profile() {
       <div className="h-16 bg-gradient-to-b from-transparent to-transparent" />
       
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6"
@@ -157,7 +143,6 @@ export default function Profile() {
           <span className="text-sm">Назад</span>
         </button>
         
-        {/* Profile Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -188,7 +173,6 @@ export default function Profile() {
           </div>
         </motion.div>
         
-        {/* Tabs Navigation */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -222,7 +206,6 @@ export default function Profile() {
           </div>
         </motion.div>
         
-        {/* Tickets List */}
         <AnimatePresence mode="wait">
           {currentBookings.length > 0 ? (
             <motion.div
@@ -234,8 +217,7 @@ export default function Profile() {
               className="space-y-4"
             >
               {currentBookings.map((booking, index) => {
-                const { movie, session, cinema } = getBookingDetails(booking);
-                if (!movie || !session || !cinema) return null;
+                if (!booking.movie || !booking.session) return null;
                 
                 return (
                   <motion.div
@@ -252,48 +234,51 @@ export default function Profile() {
                     
                     <div className="flex gap-4">
                       <div className="relative flex-shrink-0 w-24 h-36 rounded-xl overflow-hidden glass">
-                        <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
+                        <img src={booking.movie.posterUrl} alt={booking.movie.title} className="w-full h-full object-cover" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-bold mb-1 truncate group-hover:text-purple-300 transition-colors">{movie.title}</h3>
+                            <h3 className="text-lg font-bold mb-1 truncate group-hover:text-purple-300 transition-colors">{booking.movie.title}</h3>
                             <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
                               <MapPin className="w-4 h-4 flex-shrink-0" />
-                              <span className="truncate">{cinema.name}</span>
+                              <span className="truncate">{booking.session.cinemaName}</span>
                             </div>
                           </div>
                           
                           <div className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                            booking.status === 'active' ? 'liquid-gradient-subtle text-green-400 border border-green-500/30' : 
+                            booking.status === 'pending' ? 'liquid-gradient-subtle text-yellow-400 border border-yellow-500/30' :
+                            booking.status === 'confirmed' ? 'liquid-gradient-subtle text-green-400 border border-green-500/30' : 
                             booking.status === 'completed' ? 'glass text-gray-400' : 'glass text-red-400 border border-red-500/30'
                           }`}>
-                            {booking.status === 'active' ? 'Активный' : booking.status === 'completed' ? 'Просмотрено' : 'Отменено'}
+                            {booking.status === 'pending' ? 'Ожидает' : 
+                             booking.status === 'confirmed' ? 'Подтвержден' : 
+                             booking.status === 'completed' ? 'Просмотрено' : 'Отменено'}
                           </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-4 h-4 text-purple-400" />
-                            <span>{new Date(session.date).toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' })}</span>
+                            <span>{new Date(booking.session.date).toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' })}</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
                             <Clock className="w-4 h-4 text-purple-400" />
-                            <span>{session.time}</span>
+                            <span>{booking.session.time}</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
                             <Film className="w-4 h-4 text-purple-400" />
-                            <span>{session.hallName}</span>
+                            <span>{booking.session.hallName}</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
                             <TicketIcon className="w-4 h-4 text-purple-400" />
-                            <span>Места: {booking.seats.join(', ')}</span>
+                            <span>Билет #{booking.id}</span>
                           </div>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <div className="text-lg font-bold">{formatRub(booking.totalPrice)}</div>
+                          <div className="text-lg font-bold">{formatRub(booking.total_amount_cents / 100)}</div>
                           <div className="flex items-center gap-2 text-sm text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">
                             <span>Подробнее</span>
                             <ChevronRight className="w-4 h-4" />
@@ -301,8 +286,8 @@ export default function Profile() {
                         </div>
                       </div>
                       
-                      {booking.status === 'active' && (
-                        <div className="hidden lg:flex flex-shrink-0 w-24 h-24 glass rounded-xl items-center justify-center">
+                      {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                        <div className="flex-shrink-0 w-24 h-24 glass rounded-xl items-center justify-center hidden md:flex">
                           <QrCode className="w-16 h-16 text-purple-400" />
                         </div>
                       )}
@@ -343,7 +328,6 @@ export default function Profile() {
           )}
         </AnimatePresence>
         
-        {/* Recommended Movies */}
         <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="mt-16">
           <div className="mb-6">
             <h2 className="text-2xl font-bold mb-2">Рекомендуем для вас</h2>
@@ -402,7 +386,6 @@ export default function Profile() {
           )}
         </motion.div>
         
-        {/* Loyalty Stats */}
         <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.3 }} className="mt-12">
           <div className="glass-strong rounded-3xl p-6">
             <h2 className="text-2xl font-bold mb-6">Ваше кино-путешествие</h2>
@@ -442,50 +425,43 @@ export default function Profile() {
         </motion.div>
       </div>
       
-      {/* Ticket Detail Modal */}
       <AnimatePresence>
-        {selectedBooking && (
+        {selectedBooking && selectedBooking.movie && selectedBooking.session && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedBooking(null)} className="fixed inset-0 bg-black/80 backdrop-blur-md z-50" />
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 30 }} transition={{ type: "spring", duration: 0.5 }} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md max-h-[90vh] overflow-hidden z-50" style={{ background: 'rgba(15, 15, 20, 0.95)', backdropFilter: 'blur(40px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
               <div className="absolute -inset-0.5 bg-gradient-to-b from-purple-500/20 to-transparent rounded-3xl blur-md -z-10" />
               <div className="relative flex flex-col max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                {(() => {
-                  const { movie, session, cinema } = getBookingDetails(selectedBooking);
-                  if (!movie || !session || !cinema) return null;
-                  return (
-                    <div className="p-8">
-                      <button onClick={() => setSelectedBooking(null)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-lg transition-all"><X className="w-5 h-5" /></button>
-                      <div className="mb-8">
-                        <h2 className="text-2xl font-bold mb-2">{movie.title}</h2>
-                        <p className="text-gray-400 text-sm">{cinema.name}</p>
-                        <p className="text-gray-500 text-xs mt-1">{new Date(session.date).toLocaleDateString('ru-RU', { weekday: 'short', month: 'short', day: 'numeric' })} • {session.time}</p>
+                <div className="p-8">
+                  <button onClick={() => setSelectedBooking(null)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-lg transition-all"><X className="w-5 h-5" /></button>
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold mb-2">{selectedBooking.movie.title}</h2>
+                    <p className="text-gray-400 text-sm">{selectedBooking.session.cinemaName}</p>
+                    <p className="text-gray-500 text-xs mt-1">{new Date(selectedBooking.session.date).toLocaleDateString('ru-RU', { weekday: 'short', month: 'short', day: 'numeric' })} • {selectedBooking.session.time}</p>
+                  </div>
+                  <div className="mb-8 grid grid-cols-2 gap-6">
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Film className="w-3.5 h-3.5" /><span>Фильм</span></div><p className="font-semibold text-sm truncate">{selectedBooking.movie.title}</p></div>
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><MapPin className="w-3.5 h-3.5" /><span>Кинотеатр</span></div><p className="font-semibold text-sm truncate">{selectedBooking.session.cinemaName}</p></div>
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Clock className="w-3.5 h-3.5" /><span>Сеанс</span></div><p className="font-semibold text-sm">{selectedBooking.session.time}</p></div>
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><TicketIcon className="w-3.5 h-3.5" /><span>Зал</span></div><p className="font-semibold text-sm">{selectedBooking.session.hallName}</p></div>
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><TicketIcon className="w-3.5 h-3.5" /><span>Билет</span></div><p className="font-semibold text-sm">#{selectedBooking.id}</p></div>
+                    <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><span>💳</span><span>Оплачено</span></div><p className="font-semibold text-sm">{formatRub(selectedBooking.total_amount_cents / 100)}</p></div>
+                  </div>
+                  {(selectedBooking.status === 'pending' || selectedBooking.status === 'confirmed') && (
+                    <div className="mb-8">
+                      <div className="relative rounded-2xl p-8 flex flex-col items-center" style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                        <div className="relative w-48 h-48 bg-white rounded-xl flex items-center justify-center mb-4"><QrCode className="w-40 h-40 text-black" /></div>
+                        <p className="text-xs text-gray-400 text-center">Сканировать на входе</p>
                       </div>
-                      <div className="mb-8 grid grid-cols-2 gap-6">
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Film className="w-3.5 h-3.5" /><span>Фильм</span></div><p className="font-semibold text-sm truncate">{movie.title}</p></div>
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><MapPin className="w-3.5 h-3.5" /><span>Кинотеатр</span></div><p className="font-semibold text-sm truncate">{cinema.name}</p></div>
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Clock className="w-3.5 h-3.5" /><span>Сеанс</span></div><p className="font-semibold text-sm">{session.time}</p></div>
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><TicketIcon className="w-3.5 h-3.5" /><span>Зал</span></div><p className="font-semibold text-sm">{session.hallName}</p></div>
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><User className="w-3.5 h-3.5" /><span>Места</span></div><p className="font-semibold text-sm">{selectedBooking.seats.join(', ')}</p></div>
-                        <div><div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><span>💳</span><span>Оплачено</span></div><p className="font-semibold text-sm">{formatRub(selectedBooking.totalPrice)}</p></div>
-                      </div>
-                      {selectedBooking.status === 'active' && (
-                        <div className="mb-8">
-                          <div className="relative rounded-2xl p-8 flex flex-col items-center" style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                            <div className="relative w-48 h-48 bg-white rounded-xl flex items-center justify-center mb-4"><QrCode className="w-40 h-40 text-black" /></div>
-                            <p className="text-xs text-gray-400 text-center">Сканировать на входе</p>
-                          </div>
-                        </div>
-                      )}
-                      {selectedBooking.status === 'active' && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <button onClick={() => toast.success('Добавлено в календарь!')} className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white/10" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}><CalendarPlus className="w-4 h-4" /><span>В календарь</span></button>
-                          <button onClick={() => toast.success('Билет отправлен!')} className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white/10" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}><Share2 className="w-4 h-4" /><span>Поделиться</span></button>
-                        </div>
-                      )}
                     </div>
-                  );
-                })()}
+                  )}
+                  {(selectedBooking.status === 'pending' || selectedBooking.status === 'confirmed') && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => toast.success('Добавлено в календарь!')} className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white/10" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}><CalendarPlus className="w-4 h-4" /><span>В календарь</span></button>
+                      <button onClick={() => toast.success('Билет отправлен!')} className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all hover:bg-white/10" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}><Share2 className="w-4 h-4" /><span>Поделиться</span></button>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           </>

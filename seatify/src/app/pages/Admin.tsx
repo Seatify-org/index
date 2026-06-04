@@ -294,15 +294,17 @@ function MoviesTab({
     }
   };
 
-  const handleSaveMovie = async (data: ExtendedMovie) => {
+  const handleSaveMovie = async (data: any) => {
     try {
-      if (data.id) {
-        await updateMovie(data.id, data);
-        setMovies((p) => p.map((m) => (m.id === data.id ? data : m)));
+      const { genre, cast, director, id, ...cleanData } = data;
+      
+      if (id) {
+        await updateMovie(id, cleanData);
+        setMovies((p) => p.map((m) => (m.id === id ? { ...m, ...cleanData, genre: data.genre, cast: data.cast, director: data.director } : m)));
         toast.success("Фильм обновлён");
       } else {
-        const newMovie = await createMovie(data);
-        setMovies((p) => [...p, newMovie]);
+        const newMovie = await createMovie(cleanData);
+        setMovies((p) => [...p, { ...newMovie, genre: data.genre, cast: data.cast, director: data.director }]);
         toast.success("Фильм добавлен");
       }
       setPanelMovie(null);
@@ -360,13 +362,13 @@ function MoviesTab({
                       />
                       <div>
                         <div className="font-semibold text-sm leading-tight">{movie.title}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{movie.director}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{movie.director ?? ""}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {movie.genre.slice(0, 2).map((g) => (
+                      {(movie.genre ?? []).slice(0, 2).map((g) => (
                         <span key={g} className="text-[10px] liquid-gradient-subtle text-purple-400 px-2 py-0.5 rounded">
                           {g}
                         </span>
@@ -456,20 +458,25 @@ function MoviePanel({
     if (!form.title?.trim()) return toast.error("Введите название фильма");
     if (!form.poster_url?.trim()) return toast.error("Введите URL постера");
 
-    onSave({
-      id: form.id,
+    const movieData = {
       title: form.title.trim(),
       description: form.description?.trim() ?? "",
-      rating: Number(form.rating) || 7.0,
-      genre: (form.genreStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       duration_minutes: Number(form.duration_minutes) || 90,
-      release_date: form.release_date ?? TODAY,
+      release_date: `${form.release_date ?? TODAY}T00:00:00Z`,
       poster_url: form.poster_url!.trim(),
       banner_url: form.banner_url?.trim() || form.poster_url!.trim(),
       trailer_url: form.trailer_url?.trim() ?? "",
+      rating: Number(form.rating) || 7.0,
+      genre: (form.genreStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       cast: (form.castStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       director: form.director?.trim() ?? "",
-    });
+    };
+
+    if (form.id) {
+      onSave({ ...movieData, id: form.id } as ExtendedMovie);
+    } else {
+      onSave(movieData as ExtendedMovie);
+    }
   };
 
   return (
@@ -652,6 +659,8 @@ function SessionsTab({
       const startTime = `${session.date}T${editData.time}:00Z`;
       
       await updateSession(id, { 
+        movie_id: session.movie_id,
+        hall_id: session.hall_id,
         start_time: startTime,
         base_price_cents: Math.round(Number(editData.price) * 100)
       });
@@ -678,8 +687,12 @@ function SessionsTab({
 
   const duplicateSession = async (s: ExtendedSession) => {
     try {
-      const { id, ...sessionData } = s;
-      const created = await createSession(sessionData);
+      const created = await createSession({
+        movie_id: s.movie_id,
+        hall_id: s.hall_id,
+        start_time: s.start_time,
+        base_price_cents: s.base_price_cents,
+      });
       setSessions((p) => [...p, { 
         ...created, 
         date: new Date(created.start_time).toISOString().split('T')[0],
@@ -705,11 +718,11 @@ function SessionsTab({
 
   const handleAddSession = async (newSession: ExtendedSession) => {
     try {
-      const { date, time, price, ...sessionData } = newSession;
       const created = await createSession({
-        ...sessionData,
-        start_time: `${date}T${time}:00Z`,
-        base_price_cents: Math.round(price * 100)
+        movie_id: newSession.movie_id,
+        hall_id: newSession.hall_id,
+        start_time: `${newSession.date}T${newSession.time}:00Z`,
+        base_price_cents: Math.round(newSession.price * 100)
       });
       
       setSessions((p) => [...p, { 
@@ -729,11 +742,11 @@ function SessionsTab({
     try {
       const createdSessions: ExtendedSession[] = [];
       for (const s of newSessions) {
-        const { date, time, price, ...sessionData } = s;
         const created = await createSession({
-          ...sessionData,
-          start_time: `${date}T${time}:00Z`,
-          base_price_cents: Math.round(price * 100)
+          movie_id: s.movie_id,
+          hall_id: s.hall_id,
+          start_time: `${s.date}T${s.time}:00Z`,
+          base_price_cents: Math.round(s.price * 100)
         });
         createdSessions.push({
           ...created,
@@ -1351,13 +1364,19 @@ function CinemasTab({
 
   const handleSaveCinema = async (data: ExtendedCinema) => {
     try {
+      const cinemaData = {
+        name: data.name,
+        address: data.address,
+        city: data.city,
+      };
+      
       if (data.id) {
-        await updateCinema(data.id, data);
+        await updateCinema(data.id, cinemaData);
         setCinemas((p) => p.map((c) => (c.id === data.id ? data : c)));
         toast.success("Кинотеатр обновлён");
       } else {
-        const newCinema = await createCinema(data);
-        setCinemas((p) => [...p, newCinema]);
+        const newCinema = await createCinema(cinemaData);
+        setCinemas((p) => [...p, data]);
         toast.success("Кинотеатр добавлен");
       }
       setPanelCinema(null);
@@ -1431,36 +1450,36 @@ function CinemasTab({
                 <div className="flex flex-wrap gap-1.5">
                   {halls.length > 0 ? (
                     <>
-                      {halls.slice(0, 5).map((h) => (
+                      {halls.slice(0, 5).map((h, idx) => (
                         <span
-                          key={h.id}
+                          key={`hall-${cinema.id}-${h.id}-${idx}`}
                           className="text-[11px] bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg text-gray-300"
                         >
                           {h.name}
                         </span>
                       ))}
                       {halls.length > 5 && (
-                        <span className="text-[11px] bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg text-gray-500">
+                        <span key={`hall-more-${cinema.id}`} className="text-[11px] bg-white/5 border border-white/8 px-2.5 py-1 rounded-lg text-gray-500">
                           +{halls.length - 5}
                         </span>
                       )}
                     </>
                   ) : (
-                    <span className="text-xs text-gray-600">Нет залов</span>
+                    <span key={`no-halls-${cinema.id}`} className="text-xs text-gray-600">Нет залов</span>
                   )}
                 </div>
               </div>
 
               {/* Facilities */}
-              {cinema.facilities.length > 0 && (
+              {cinema.facilities && cinema.facilities.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-white/5">
-                  {cinema.facilities.slice(0, 5).map((f) => (
-                    <span key={f} className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-500">
+                  {cinema.facilities.slice(0, 5).map((f, idx) => (
+                    <span key={`fac-${cinema.id}-${idx}`} className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-gray-500">
                       {f}
                     </span>
                   ))}
                   {cinema.facilities.length > 5 && (
-                    <span className="text-[10px] text-gray-600">+{cinema.facilities.length - 5}</span>
+                    <span key={`fac-more-${cinema.id}`} className="text-[10px] text-gray-600">+{cinema.facilities.length - 5}</span>
                   )}
                 </div>
               )}
@@ -1469,7 +1488,7 @@ function CinemasTab({
         })}
 
         {filtered.length === 0 && (
-          <div className="col-span-2 py-16 text-center text-gray-600 text-sm glass-strong rounded-2xl">
+          <div key="no-cinemas" className="col-span-2 py-16 text-center text-gray-600 text-sm glass-strong rounded-2xl">
             <Building2 size={36} className="mx-auto mb-3 opacity-20" />
             Кинотеатры не найдены
           </div>
@@ -1520,7 +1539,7 @@ function CinemaPanel({
       rating: Number(form.rating) || 4.5,
       facilities: (form.facilitiesStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       totalHalls: Number(form.totalHalls) || 1,
-    });
+    } as ExtendedCinema);
   };
 
   return (
