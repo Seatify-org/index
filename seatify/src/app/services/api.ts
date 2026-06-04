@@ -1,6 +1,6 @@
 // src/app/services/api.ts
 
-const API_BASE_URL = '';
+const API_BASE_URL = 'http://localhost:8082'
 
 // Функция для получения заголовков авторизации
 function getAuthHeaders(): Record<string, string> {

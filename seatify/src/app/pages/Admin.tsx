@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Navigate } from "react-router"; // Импортируем Navigate для редиректа
+import { Navigate } from "react-router";
 import {
   Plus, Edit2, Trash2, Film, Clock, ChevronDown, Save,
   Layers, Search, Building2, Ticket, Copy, Check, X,
@@ -7,9 +7,23 @@ import {
 } from "lucide-react";
 import { formatRub } from "../utils/formatRub";
 import { toast } from "sonner";
-// Импортируем типы и API функции
-import { fetchMovies, fetchSessionsByMovie, type Movie as ApiMovie, type Session as ApiSession } from "../services/api";
-import { useAuth } from "../contexts/AuthContext"; // Импортируем хук авторизации
+// ✅ Импортируем РЕАЛЬНЫЕ API функции вместо заглушек
+import { 
+  fetchMovies, 
+  fetchSessionsByMovie, 
+  createMovie, 
+  updateMovie, 
+  deleteMovie,
+  createSession,
+  updateSession,
+  deleteSession,
+  createCinema,
+  updateCinema,
+  deleteCinema,
+  type Movie as ApiMovie, 
+  type Session as ApiSession 
+} from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 // ─── Constants & Helpers ──────────────────────────────────────────────────────
 
@@ -22,128 +36,51 @@ const PRICE_STEPS = [99,149,199,249,299,349,399,449,499,549,599,649,699,749,799,
 const snapPrice = (n: number) =>
   PRICE_STEPS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
 
-// ─── Extended Types for Frontend ──────────────────────────────────────────────
+// ─── Extended Types for Frontend (snake_case как в backend) ──────────────────
 
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
   rating: number;
-  posterUrl: string;
-  bannerUrl?: string;
-  trailerUrl?: string;
   cast: string[];
   director: string;
-  duration: number;
-  releaseDate: string;
 }
 
 interface ExtendedSession extends ApiSession {
-  id: string;
-  movieId: string;
-  cinemaId: string;
-  hallId: string;
-  hallName: string;
   date: string;
   time: string;
   price: number;
-  integrationLevel: 1 | 2 | 3;
 }
 
 interface ExtendedCinema {
-  id: string;
+  id: number;
   name: string;
   address: string;
   city: string;
   rating: number;
-  distance?: number;
-  latitude?: number;
-  longitude?: number;
   facilities: string[];
   totalHalls: number;
-  imageUrl?: string;
-  integrationLevel: 1 | 2 | 3;
-  phoneNumber?: string;
-  infrastructureTags?: string[];
 }
 
-// ─── API Functions (Mocked until backend implements Admin endpoints) ──────────
-
-const apiRequest = async (url: string, method: string, body?: any) => {
-  const res = await fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
-  return res.json();
-};
-
-// Заглушки CRUD операций
-const createMovieApi = async (data: any) => {
-  console.log("Creating movie:", data);
-  return { ...data, id: Date.now() };
-};
-
-const updateMovieApi = async (id: string, data: any) => {
-  console.log("Updating movie:", id, data);
-  return { ...data, id: Number(id) };
-};
-
-const deleteMovieApi = async (id: string) => {
-  console.log("Deleting movie:", id);
-  return true;
-};
-
-const createSessionApi = async (data: any) => {
-  console.log("Creating session:", data);
-  return { ...data, id: Date.now() };
-};
-
-const updateSessionApi = async (id: string, data: any) => {
-  console.log("Updating session:", id, data);
-  return { ...data, id: Number(id) };
-};
-
-const deleteSessionApi = async (id: string) => {
-  console.log("Deleting session:", id);
-  return true;
-};
-
-const createCinemaApi = async (data: any) => {
-  console.log("Creating cinema:", data);
-  return { ...data, id: Date.now() };
-};
-
-const updateCinemaApi = async (id: string, data: any) => {
-  console.log("Updating cinema:", id, data);
-  return { ...data, id: Number(id) };
-};
-
-const deleteCinemaApi = async (id: string) => {
-  console.log("Deleting cinema:", id);
-  return true;
-};
+// ❌ УДАЛЕНЫ ВСЕ ЗАГЛУШКИ API (createMovieApi, updateMovieApi и т.д.)
 
 // ─── Root Component ───────────────────────────────────────────────────────────
 
 type Tab = "movies" | "sessions" | "cinemas";
 
 export default function Admin() {
-  const { user, isAdmin, isLoading } = useAuth(); // Получаем данные о пользователе
+  const { user, isAdmin, isLoading } = useAuth();
   
   const [tab, setTab] = useState<Tab>("movies");
   
-  // Data States
   const [moviesList, setMoviesList] = useState<ExtendedMovie[]>([]);
   const [cinemasList, setCinemasList] = useState<ExtendedCinema[]>([]);
   const [sessionsList, setSessionsList] = useState<ExtendedSession[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  // ЗАЩИТА РОУТА: Если загрузка завершена и пользователь не админ — редирект
   if (!isLoading && (!user || !isAdmin())) {
     return <Navigate to="/" replace />;
   }
 
-  // Load Data (только если пользователь админ)
   useEffect(() => {
     if (!user || !isAdmin()) return;
 
@@ -154,15 +91,10 @@ export default function Admin() {
         const apiMovies = await fetchMovies();
         const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
           ...m,
-          id: String(m.id),
-          genre: ["Фантастика", "Боевик"], // Заглушка, если в API нет жанров
+          genre: m.genre || ["Фантастика", "Боевик"],
           rating: m.rating || 7.5,
-          posterUrl: m.poster_url,
-          duration: m.duration_minutes,
-          releaseDate: m.release_date,
-          cast: ["Актер 1", "Актер 2"],
-          director: "Режиссер",
-          bannerUrl: m.poster_url,
+          cast: m.cast || ["Актер 1", "Актер 2"],
+          director: m.director || "Режиссер",
         }));
         setMoviesList(extendedMovies);
 
@@ -170,32 +102,26 @@ export default function Admin() {
         const allSessionsPromises = apiMovies.map(m => fetchSessionsByMovie(m.id));
         const sessionsArrays = await Promise.all(allSessionsPromises);
         
-        const flatSessions: ExtendedSession[] = sessionsArrays.flat().map((s, idx) => ({
-          id: String(s.id),
-          movieId: String(s.movie_id),
-          cinemaId: String(s.cinema_id),
-          hallId: String(s.hall_id),
-          hallName: `Зал ${s.hall_id}`,
+        const flatSessions: ExtendedSession[] = sessionsArrays.flat().map(s => ({
+          ...s,
           date: new Date(s.start_time).toISOString().split('T')[0],
           time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
           price: s.base_price_cents / 100,
-          integrationLevel: 1,
         }));
         setSessionsList(flatSessions);
 
         // 3. Extract Cinemas from Sessions
-        const cinemaMap = new Map<string, ExtendedCinema>();
+        const cinemaMap = new Map<number, ExtendedCinema>();
         flatSessions.forEach(s => {
-          if (!cinemaMap.has(s.cinemaId)) {
-            cinemaMap.set(s.cinemaId, {
-              id: s.cinemaId,
-              name: `Кинотеатр ${s.cinemaId}`,
-              address: "Адрес уточняется",
-              city: "Москва",
+          if (!cinemaMap.has(s.cinema_id)) {
+            cinemaMap.set(s.cinema_id, {
+              id: s.cinema_id,
+              name: `Кинотеатр ${s.cinema_id}`,
+              address: s.cinema_address || "Адрес уточняется",
+              city: s.cinema_city || "Москва",
               rating: 4.5,
               facilities: ["Wi-Fi"],
               totalHalls: 1,
-              integrationLevel: 1,
             });
           }
         });
@@ -210,14 +136,14 @@ export default function Admin() {
     };
 
     loadData();
-  }, [user]); // Перезагружаем при изменении пользователя
+  }, [user]);
 
   const hallsMap = useMemo(() => {
-    const map: Record<string, { id: string; name: string }[]> = {};
+    const map: Record<number, { id: number; name: string }[]> = {};
     sessionsList.forEach((s) => {
-      if (!map[s.cinemaId]) map[s.cinemaId] = [];
-      if (!map[s.cinemaId].find((h) => h.id === s.hallId)) {
-        map[s.cinemaId].push({ id: s.hallId, name: s.hallName });
+      if (!map[s.cinema_id]) map[s.cinema_id] = [];
+      if (!map[s.cinema_id].find((h) => h.id === s.hall_id)) {
+        map[s.cinema_id].push({ id: s.hall_id, name: `Зал ${s.hall_id}` });
       }
     });
     return map;
@@ -239,7 +165,6 @@ export default function Admin() {
     { id: "cinemas", label: "Кинотеатры", Icon: Building2 },
   ];
 
-  // Показываем лоадер пока грузятся данные панели (после проверки прав)
   if (isLoading || dataLoading) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center">
@@ -253,7 +178,6 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen pt-16">
-      {/* Sticky tab bar */}
       <div className="sticky top-16 z-40 glass border-b border-white/10 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-[52px] flex items-center justify-between gap-4">
           <span className="text-sm text-gray-400 hidden sm:block font-medium">Seatify Admin</span>
@@ -277,7 +201,6 @@ export default function Admin() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Stats row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { icon: <Film size={18} className="text-purple-400" />, label: "Фильмов", value: String(moviesList.length) },
@@ -297,7 +220,6 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Tab panels */}
         {tab === "movies" && (
           <MoviesTab
             movies={moviesList}
@@ -355,17 +277,17 @@ function MoviesTab({
     [movies, search]
   );
 
-  const handleDelete = async (id: string) => {
-    const count = sessions.filter((s) => s.movieId === id).length;
+  const handleDelete = async (id: number) => {
+    const count = sessions.filter((s) => s.movie_id === id).length;
     const msg = count
       ? `С фильмом связано ${count} сеансов. Удалить фильм и все его сеансы?`
       : "Удалить фильм?";
     if (!window.confirm(msg)) return;
     
     try {
-      await deleteMovieApi(id);
+      await deleteMovie(id);
       setMovies((p) => p.filter((m) => m.id !== id));
-      if (count) setSessions((p) => p.filter((s) => s.movieId !== id));
+      if (count) setSessions((p) => p.filter((s) => s.movie_id !== id));
       toast.success("Фильм удалён");
     } catch (e) {
       toast.error("Ошибка при удалении фильма");
@@ -374,24 +296,23 @@ function MoviesTab({
 
   const handleSaveMovie = async (data: ExtendedMovie) => {
     try {
-      if (movies.find(m => m.id === data.id)) {
-        await updateMovieApi(data.id, data);
+      if (data.id) {
+        await updateMovie(data.id, data);
         setMovies((p) => p.map((m) => (m.id === data.id ? data : m)));
         toast.success("Фильм обновлён");
       } else {
-        const newMovie = await createMovieApi(data);
-        setMovies((p) => [...p, { ...newMovie, id: String(newMovie.id) } as ExtendedMovie]);
+        const newMovie = await createMovie(data);
+        setMovies((p) => [...p, newMovie]);
         toast.success("Фильм добавлен");
       }
       setPanelMovie(null);
-    } catch (e) {
-      toast.error("Ошибка при сохранении фильма");
+    } catch (e: any) {
+      toast.error(`Ошибка при сохранении фильма: ${e.message}`);
     }
   };
 
   return (
     <div>
-      {/* Toolbar */}
       <div className="flex items-center justify-between mb-5 gap-4">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -410,7 +331,6 @@ function MoviesTab({
         </button>
       </div>
 
-      {/* Table */}
       <div className="glass-strong rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px]">
@@ -434,7 +354,7 @@ function MoviesTab({
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <img
-                        src={movie.posterUrl}
+                        src={movie.poster_url}
                         alt={movie.title}
                         className="w-9 h-[52px] rounded-lg object-cover border border-white/10 shrink-0 bg-white/5"
                       />
@@ -453,7 +373,7 @@ function MoviesTab({
                       ))}
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-400 tabular-nums">{movie.duration} мин</td>
+                  <td className="px-5 py-3 text-sm text-gray-400 tabular-nums">{movie.duration_minutes} мин</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1">
                       <Star size={12} className="text-yellow-400 fill-yellow-400 shrink-0" />
@@ -461,7 +381,7 @@ function MoviesTab({
                     </div>
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap">
-                    {new Date(movie.releaseDate).toLocaleDateString("ru-RU", {
+                    {new Date(movie.release_date).toLocaleDateString("ru-RU", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
@@ -534,19 +454,19 @@ function MoviePanel({
 
   const handleSave = () => {
     if (!form.title?.trim()) return toast.error("Введите название фильма");
-    if (!form.posterUrl?.trim()) return toast.error("Введите URL постера");
+    if (!form.poster_url?.trim()) return toast.error("Введите URL постера");
 
     onSave({
-      id: form.id ?? String(Date.now()),
+      id: form.id,
       title: form.title.trim(),
       description: form.description?.trim() ?? "",
       rating: Number(form.rating) || 7.0,
       genre: (form.genreStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
-      duration: Number(form.duration) || 90,
-      releaseDate: form.releaseDate ?? TODAY,
-      posterUrl: form.posterUrl!.trim(),
-      bannerUrl: form.bannerUrl?.trim() || form.posterUrl!.trim(),
-      trailerUrl: form.trailerUrl?.trim() ?? "",
+      duration_minutes: Number(form.duration_minutes) || 90,
+      release_date: form.release_date ?? TODAY,
+      poster_url: form.poster_url!.trim(),
+      banner_url: form.banner_url?.trim() || form.poster_url!.trim(),
+      trailer_url: form.trailer_url?.trim() ?? "",
       cast: (form.castStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       director: form.director?.trim() ?? "",
     });
@@ -581,8 +501,8 @@ function MoviePanel({
           <Field label="Длительность (мин)">
             <FInput
               type="number"
-              value={form.duration ?? ""}
-              onChange={(e) => set("duration", Number(e.target.value))}
+              value={form.duration_minutes ?? ""}
+              onChange={(e) => set("duration_minutes", Number(e.target.value))}
               placeholder="120"
             />
           </Field>
@@ -611,8 +531,8 @@ function MoviePanel({
           <Field label="Дата выхода">
             <FInput
               type="date"
-              value={form.releaseDate ?? ""}
-              onChange={(e) => set("releaseDate", e.target.value)}
+              value={form.release_date ?? ""}
+              onChange={(e) => set("release_date", e.target.value)}
             />
           </Field>
           <Field label="Режиссёр">
@@ -634,13 +554,13 @@ function MoviePanel({
 
         <Field label="URL постера *">
           <FInput
-            value={form.posterUrl ?? ""}
-            onChange={(e) => set("posterUrl", e.target.value)}
+            value={form.poster_url ?? ""}
+            onChange={(e) => set("poster_url", e.target.value)}
             placeholder="https://images.unsplash.com/ …"
           />
-          {form.posterUrl && (
+          {form.poster_url && (
             <img
-              src={form.posterUrl}
+              src={form.poster_url}
               alt="Постер"
               className="mt-2 h-32 w-auto rounded-xl border border-white/10 object-cover bg-white/5"
             />
@@ -649,16 +569,16 @@ function MoviePanel({
 
         <Field label="URL баннера (широкое изображение)">
           <FInput
-            value={form.bannerUrl ?? ""}
-            onChange={(e) => set("bannerUrl", e.target.value)}
+            value={form.banner_url ?? ""}
+            onChange={(e) => set("banner_url", e.target.value)}
             placeholder="https://images.unsplash.com/ …"
           />
         </Field>
 
         <Field label="URL трейлера (YouTube)">
           <FInput
-            value={form.trailerUrl ?? ""}
-            onChange={(e) => set("trailerUrl", e.target.value)}
+            value={form.trailer_url ?? ""}
+            onChange={(e) => set("trailer_url", e.target.value)}
             placeholder="https://www.youtube.com/watch?v=…"
           />
         </Field>
@@ -689,26 +609,25 @@ function SessionsTab({
   setSessions: React.Dispatch<React.SetStateAction<ExtendedSession[]>>;
   movies: ExtendedMovie[];
   cinemas: ExtendedCinema[];
-  hallsMap: Record<string, { id: string; name: string }[]>;
+  hallsMap: Record<number, { id: number; name: string }[]>;
 }) {
   const [dateFilter, setDateFilter] = useState(TODAY);
   const [movieFilter, setMovieFilter] = useState("");
   const [cinemaFilter, setCinemaFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editData, setEditData] = useState({ time: "", price: "" });
   const [bulkOpen, setBulkOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-
   const filtered = useMemo(() => {
     return sessions
       .filter((s) => {
         if (dateFilter && s.date !== dateFilter) return false;
-        if (movieFilter && s.movieId !== movieFilter) return false;
-        if (cinemaFilter && s.cinemaId !== cinemaFilter) return false;
+        if (movieFilter && s.movie_id !== Number(movieFilter)) return false;
+        if (cinemaFilter && s.cinema_id !== Number(cinemaFilter)) return false;
         if (search) {
-          const m = movies.find((m) => m.id === s.movieId);
-          const c = cinemas.find((c) => c.id === s.cinemaId);
+          const m = movies.find((m) => m.id === s.movie_id);
+          const c = cinemas.find((c) => c.id === s.cinema_id);
           const q = search.toLowerCase();
           if (!m?.title.toLowerCase().includes(q) && !c?.name.toLowerCase().includes(q))
             return false;
@@ -724,13 +643,29 @@ function SessionsTab({
     setEditData({ time: s.time, price: String(s.price) });
   };
 
-  const saveEdit = async (id: string) => {
+  const saveEdit = async (id: number) => {
     try {
-      await updateSessionApi(id, { time: editData.time, price: Number(editData.price) });
+      const session = sessions.find(s => s.id === id);
+      if (!session) return;
+
+      // Формируем start_time из date и нового time
+      const startTime = `${session.date}T${editData.time}:00Z`;
+      
+      await updateSession(id, { 
+        start_time: startTime,
+        base_price_cents: Math.round(Number(editData.price) * 100)
+      });
+      
       setSessions((p) =>
         p.map((s) =>
           s.id === id
-            ? { ...s, time: editData.time, price: Number(editData.price) || s.price }
+            ? { 
+                ...s, 
+                time: editData.time, 
+                price: Number(editData.price) || s.price,
+                start_time: startTime,
+                base_price_cents: Math.round(Number(editData.price) * 100)
+              }
             : s
         )
       );
@@ -741,15 +676,26 @@ function SessionsTab({
     }
   };
 
-  const duplicateSession = (s: ExtendedSession) => {
-    setSessions((p) => [...p, { ...s, id: String(Date.now()) }]);
-    toast.success("Сеанс продублирован");
+  const duplicateSession = async (s: ExtendedSession) => {
+    try {
+      const { id, ...sessionData } = s;
+      const created = await createSession(sessionData);
+      setSessions((p) => [...p, { 
+        ...created, 
+        date: new Date(created.start_time).toISOString().split('T')[0],
+        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        price: created.base_price_cents / 100
+      }]);
+      toast.success("Сеанс продублирован");
+    } catch (e) {
+      toast.error("Ошибка при дублировании сеанса");
+    }
   };
 
-  const deleteSession = async (id: string) => {
+  const handleDeleteSession = async (id: number) => {
     if(!window.confirm("Удалить этот сеанс?")) return;
     try {
-      await deleteSessionApi(id);
+      await deleteSession(id);
       setSessions((p) => p.filter((s) => s.id !== id));
       toast.success("Сеанс удалён");
     } catch (e) {
@@ -759,25 +705,48 @@ function SessionsTab({
 
   const handleAddSession = async (newSession: ExtendedSession) => {
     try {
-      const created = await createSessionApi(newSession);
-      setSessions((p) => [...p, { ...created, id: String(created.id) } as ExtendedSession]);
+      const { date, time, price, ...sessionData } = newSession;
+      const created = await createSession({
+        ...sessionData,
+        start_time: `${date}T${time}:00Z`,
+        base_price_cents: Math.round(price * 100)
+      });
+      
+      setSessions((p) => [...p, { 
+        ...created,
+        date: new Date(created.start_time).toISOString().split('T')[0],
+        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        price: created.base_price_cents / 100
+      }]);
       setAddOpen(false);
       toast.success("Сеанс добавлен");
-    } catch (e) {
-      toast.error("Ошибка при создании сеанса");
+    } catch (e: any) {
+      toast.error(`Ошибка при создании сеанса: ${e.message}`);
     }
   };
 
   const handleBulkSave = async (newSessions: ExtendedSession[]) => {
     try {
+      const createdSessions: ExtendedSession[] = [];
       for (const s of newSessions) {
-        await createSessionApi(s);
+        const { date, time, price, ...sessionData } = s;
+        const created = await createSession({
+          ...sessionData,
+          start_time: `${date}T${time}:00Z`,
+          base_price_cents: Math.round(price * 100)
+        });
+        createdSessions.push({
+          ...created,
+          date: new Date(created.start_time).toISOString().split('T')[0],
+          time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+          price: created.base_price_cents / 100
+        });
       }
-      setSessions((p) => [...p, ...newSessions]);
+      setSessions((p) => [...p, ...createdSessions]);
       setBulkOpen(false);
-      toast.success(`Создано ${newSessions.length} сеансов`);
-    } catch (e) {
-      toast.error("Ошибка при массовом создании");
+      toast.success(`Создано ${createdSessions.length} сеансов`);
+    } catch (e: any) {
+      toast.error(`Ошибка при массовом создании: ${e.message}`);
     }
   };
 
@@ -872,8 +841,8 @@ function SessionsTab({
             </thead>
             <tbody className="divide-y divide-white/5">
               {filtered.map((session) => {
-                const movie = movies.find((m) => m.id === session.movieId);
-                const cinema = cinemas.find((c) => c.id === session.cinemaId);
+                const movie = movies.find((m) => m.id === session.movie_id);
+                const cinema = cinemas.find((c) => c.id === session.cinema_id);
                 const isEditing = editingId === session.id;
 
                 return (
@@ -887,7 +856,7 @@ function SessionsTab({
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <img
-                          src={movie?.posterUrl}
+                          src={movie?.poster_url}
                           alt=""
                           className="w-8 h-11 rounded object-cover border border-white/10 shrink-0 bg-white/5"
                         />
@@ -900,7 +869,7 @@ function SessionsTab({
                     {/* Cinema / Hall */}
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium truncate max-w-[160px]">{cinema?.name ?? "—"}</div>
-                      <div className="text-[11px] text-gray-500">{session.hallName}</div>
+                      <div className="text-[11px] text-gray-500">Зал {session.hall_id}</div>
                     </td>
 
                     {/* Date */}
@@ -975,7 +944,7 @@ function SessionsTab({
                               <Copy size={13} />
                             </button>
                             <button
-                              onClick={() => deleteSession(session.id)}
+                              onClick={() => handleDeleteSession(session.id)}
                               className="p-1.5 rounded-lg hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors"
                               title="Удалить"
                             >
@@ -1037,14 +1006,13 @@ function BulkSessionPanel({
 }: {
   movies: ExtendedMovie[];
   cinemas: ExtendedCinema[];
-  hallsMap: Record<string, { id: string; name: string }[]>;
+  hallsMap: Record<number, { id: number; name: string }[]>;
   onClose: () => void;
   onSave: (sessions: ExtendedSession[]) => void;
 }) {
-  const [movieId, setMovieId] = useState(movies[0]?.id ?? "");
-  const [cinemaId, setCinemaId] = useState(cinemas[0]?.id ?? "");
-  const [hallId, setHallId] = useState("");
-  const [hallName, setHallName] = useState("");
+  const [movieId, setMovieId] = useState(movies[0]?.id ?? 0);
+  const [cinemaId, setCinemaId] = useState(cinemas[0]?.id ?? 0);
+  const [hallId, setHallId] = useState(0);
   const [date, setDate] = useState(TODAY);
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("22:00");
@@ -1053,14 +1021,12 @@ function BulkSessionPanel({
   const [preview, setPreview] = useState<ExtendedSession[]>([]);
 
   const currentHalls = hallsMap[cinemaId] ?? [];
-  const isCustomHall = hallId === "custom";
   const selectedMovie = movies.find((m) => m.id === movieId);
   const selectedCinema = cinemas.find((c) => c.id === cinemaId);
 
   useEffect(() => {
     const h = (hallsMap[cinemaId] ?? [])[0];
-    setHallId(h?.id ?? "custom");
-    setHallName(h?.name ?? "");
+    setHallId(h?.id ?? 0);
     setPreview([]);
   }, [cinemaId, hallsMap]);
 
@@ -1068,30 +1034,26 @@ function BulkSessionPanel({
 
   const generate = () => {
     const iv = parseInt(intervalMin);
-    const finalHallName = isCustomHall
-      ? hallName
-      : currentHalls.find((h) => h.id === hallId)?.name ?? "";
-
-    if (!movieId || !cinemaId || !date) return toast.error("Заполните все поля");
-    if (!finalHallName.trim()) return toast.error("Укажите название зала");
+    
+    if (!movieId || !cinemaId || !hallId || !date) return toast.error("Заполните все поля");
     if (isNaN(iv) || iv < 30) return toast.error("Интервал должен быть не менее 30 минут");
 
-    const hallIdFinal = isCustomHall ? `h_${Date.now()}` : hallId;
     const generated: ExtendedSession[] = [];
     let cur = new Date(`${date}T${startTime}`);
     const end = new Date(`${date}T${endTime}`);
 
     while (cur <= end) {
+      const timeStr = cur.toTimeString().substring(0, 5);
       generated.push({
-        id: String(Date.now() + generated.length),
-        movieId,
-        cinemaId,
-        hallId: hallIdFinal,
-        hallName: finalHallName,
+        id: 0, // Временный ID для preview
+        movie_id: movieId,
+        cinema_id: cinemaId,
+        hall_id: hallId,
+        start_time: `${date}T${timeStr}:00Z`,
+        base_price_cents: Math.round(snapPrice(parseInt(price) || 499) * 100),
         date,
-        time: cur.toTimeString().substring(0, 5),
+        time: timeStr,
         price: snapPrice(parseInt(price) || 499),
-        integrationLevel: selectedCinema?.integrationLevel ?? 1,
       });
       cur = new Date(cur.getTime() + iv * 60000);
     }
@@ -1112,7 +1074,7 @@ function BulkSessionPanel({
       <div className="space-y-4 pb-4">
         {/* Movie */}
         <Field label="Фильм">
-          <FSelect value={movieId} onChange={(v) => { setMovieId(v); resetPreview(); }}>
+          <FSelect value={String(movieId)} onChange={(v) => { setMovieId(Number(v)); resetPreview(); }}>
             {movies.map((m) => (
               <option key={m.id} value={m.id}>{m.title}</option>
             ))}
@@ -1121,11 +1083,11 @@ function BulkSessionPanel({
 
         {selectedMovie && (
           <div className="flex items-center gap-3 p-3 glass rounded-xl border border-white/8">
-            <img src={selectedMovie.posterUrl} alt="" className="w-9 h-12 rounded object-cover shrink-0 bg-white/5" />
+            <img src={selectedMovie.poster_url} alt="" className="w-9 h-12 rounded object-cover shrink-0 bg-white/5" />
             <div>
               <div className="text-sm font-semibold">{selectedMovie.title}</div>
               <div className="text-xs text-gray-400">
-                {selectedMovie.duration} мин · {selectedMovie.genre.slice(0, 2).join(", ")}
+                {selectedMovie.duration_minutes} мин · {selectedMovie.genre?.slice(0, 2).join(", ")}
               </div>
             </div>
           </div>
@@ -1134,7 +1096,7 @@ function BulkSessionPanel({
         {/* Cinema & Hall */}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Кинотеатр">
-            <FSelect value={cinemaId} onChange={(v) => { setCinemaId(v); resetPreview(); }}>
+            <FSelect value={String(cinemaId)} onChange={(v) => { setCinemaId(Number(v)); resetPreview(); }}>
               {cinemas.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -1142,34 +1104,18 @@ function BulkSessionPanel({
           </Field>
           <Field label="Зал">
             <FSelect
-              value={hallId}
+              value={String(hallId)}
               onChange={(v) => {
-                setHallId(v);
-                if (v !== "custom") {
-                  setHallName(currentHalls.find((h) => h.id === v)?.name ?? "");
-                } else {
-                  setHallName("");
-                }
+                setHallId(Number(v));
                 resetPreview();
               }}
             >
               {currentHalls.map((h) => (
                 <option key={h.id} value={h.id}>{h.name}</option>
               ))}
-              <option value="custom">+ Новый зал</option>
             </FSelect>
           </Field>
         </div>
-
-        {isCustomHall && (
-          <Field label="Название нового зала">
-            <FInput
-              value={hallName}
-              onChange={(e) => { setHallName(e.target.value); resetPreview(); }}
-              placeholder="Зал 1, IMAX, Premium…"
-            />
-          </Field>
-        )}
 
         {/* Date */}
         <Field label="Дата проведения">
@@ -1273,43 +1219,37 @@ function AddSessionPanel({
 }: {
   movies: ExtendedMovie[];
   cinemas: ExtendedCinema[];
-  hallsMap: Record<string, { id: string; name: string }[]>;
+  hallsMap: Record<number, { id: number; name: string }[]>;
   onClose: () => void;
   onSave: (session: ExtendedSession) => void;
 }) {
-  const [movieId, setMovieId] = useState(movies[0]?.id ?? "");
-  const [cinemaId, setCinemaId] = useState(cinemas[0]?.id ?? "");
-  const [hallId, setHallId] = useState("");
-  const [customHallName, setCustomHallName] = useState("");
+  const [movieId, setMovieId] = useState(movies[0]?.id ?? 0);
+  const [cinemaId, setCinemaId] = useState(cinemas[0]?.id ?? 0);
+  const [hallId, setHallId] = useState(0);
   const [date, setDate] = useState(TODAY);
   const [time, setTime] = useState("12:00");
   const [price, setPrice] = useState("499");
 
   const halls = hallsMap[cinemaId] ?? [];
-  const isCustom = hallId === "custom";
 
   useEffect(() => {
     const h = (hallsMap[cinemaId] ?? [])[0];
-    setHallId(h?.id ?? "custom");
+    setHallId(h?.id ?? 0);
   }, [cinemaId, hallsMap]);
 
   const handleSave = () => {
-    const cinema = cinemas.find((c) => c.id === cinemaId);
-    const hall = halls.find((h) => h.id === hallId);
-    const finalHallName = isCustom ? customHallName.trim() : (hall?.name ?? "Зал");
-    if (!movieId || !cinemaId || !date || !time) return toast.error("Заполните все поля");
-    if (!finalHallName) return toast.error("Укажите название зала");
+    if (!movieId || !cinemaId || !hallId || !date || !time) return toast.error("Заполните все поля");
 
     onSave({
-      id: String(Date.now()),
-      movieId,
-      cinemaId,
-      hallId: isCustom ? `h_${Date.now()}` : hallId,
-      hallName: finalHallName,
+      id: 0, // Backend создаст ID
+      movie_id: movieId,
+      cinema_id: cinemaId,
+      hall_id: hallId,
+      start_time: `${date}T${time}:00Z`,
+      base_price_cents: Math.round(snapPrice(parseInt(price) || 499) * 100),
       date,
       time,
       price: snapPrice(parseInt(price) || 499),
-      integrationLevel: cinema?.integrationLevel ?? 1,
     });
   };
 
@@ -1321,7 +1261,7 @@ function AddSessionPanel({
     >
       <div className="space-y-4 pb-4">
         <Field label="Фильм">
-          <FSelect value={movieId} onChange={setMovieId}>
+          <FSelect value={String(movieId)} onChange={(v) => setMovieId(Number(v))}>
             {movies.map((m) => (
               <option key={m.id} value={m.id}>{m.title}</option>
             ))}
@@ -1329,7 +1269,7 @@ function AddSessionPanel({
         </Field>
 
         <Field label="Кинотеатр">
-          <FSelect value={cinemaId} onChange={setCinemaId}>
+          <FSelect value={String(cinemaId)} onChange={(v) => setCinemaId(Number(v))}>
             {cinemas.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -1337,24 +1277,12 @@ function AddSessionPanel({
         </Field>
 
         <Field label="Зал">
-          <FSelect value={hallId} onChange={setHallId}>
+          <FSelect value={String(hallId)} onChange={(v) => setHallId(Number(v))}>
             {halls.map((h) => (
               <option key={h.id} value={h.id}>{h.name}</option>
             ))}
-            <option value="custom">+ Новый зал</option>
           </FSelect>
         </Field>
-
-        {isCustom && (
-          <Field label="Название зала">
-            <FInput
-              value={customHallName}
-              onChange={(e) => setCustomHallName(e.target.value)}
-              placeholder="Зал 1"
-            />
-          </Field>
-        )}
-
         <div className="grid grid-cols-2 gap-3">
           <Field label="Дата">
             <FInput type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -1395,7 +1323,7 @@ function CinemasTab({
 }: {
   cinemas: ExtendedCinema[];
   setCinemas: React.Dispatch<React.SetStateAction<ExtendedCinema[]>>;
-  hallsMap: Record<string, { id: string; name: string }[]>;
+  hallsMap: Record<number, { id: number; name: string }[]>;
 }) {
   const [search, setSearch] = useState("");
   const [panelCinema, setPanelCinema] = useState<ExtendedCinema | "new" | null>(null);
@@ -1410,10 +1338,10 @@ function CinemasTab({
     [cinemas, search]
   );
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!window.confirm("Удалить кинотеатр?")) return;
     try {
-      await deleteCinemaApi(id);
+      await deleteCinema(id);
       setCinemas((p) => p.filter((c) => c.id !== id));
       toast.success("Кинотеатр удалён");
     } catch (e) {
@@ -1423,25 +1351,19 @@ function CinemasTab({
 
   const handleSaveCinema = async (data: ExtendedCinema) => {
     try {
-      if (cinemas.find(c => c.id === data.id)) {
-        await updateCinemaApi(data.id, data);
+      if (data.id) {
+        await updateCinema(data.id, data);
         setCinemas((p) => p.map((c) => (c.id === data.id ? data : c)));
         toast.success("Кинотеатр обновлён");
       } else {
-        const newCinema = await createCinemaApi(data);
-        setCinemas((p) => [...p, { ...newCinema, id: String(newCinema.id) } as ExtendedCinema]);
+        const newCinema = await createCinema(data);
+        setCinemas((p) => [...p, newCinema]);
         toast.success("Кинотеатр добавлен");
       }
       setPanelCinema(null);
-    } catch (e) {
-      toast.error("Ошибка при сохранении кинотеатра");
+    } catch (e: any) {
+      toast.error(`Ошибка при сохранении кинотеатра: ${e.message}`);
     }
-  };
-
-  const LEVEL: Record<number, { label: string; color: string }> = {
-    1: { label: "Выбор мест", color: "text-emerald-400" },
-    2: { label: "Общий вход", color: "text-yellow-400" },
-    3: { label: "По телефону", color: "text-orange-400" },
   };
 
   return (
@@ -1469,7 +1391,6 @@ function CinemasTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map((cinema) => {
           const halls = hallsMap[cinema.id] ?? [];
-          const level = LEVEL[cinema.integrationLevel] ?? LEVEL[1];
 
           return (
             <div
@@ -1482,9 +1403,6 @@ function CinemasTab({
                   <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
                     <MapPin size={11} className="shrink-0" />
                     <span className="truncate">{cinema.city} · {cinema.address}</span>
-                  </div>
-                  <div className={`text-xs mt-2 font-medium ${level.color}`}>
-                    ● {level.label}
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1508,7 +1426,7 @@ function CinemasTab({
               {/* Halls */}
               <div>
                 <div className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider">
-                  Залы ({halls.length > 0 ? halls.length : cinema.totalHalls})
+                  Залы ({halls.length})
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {halls.length > 0 ? (
@@ -1528,7 +1446,7 @@ function CinemasTab({
                       )}
                     </>
                   ) : (
-                    <span className="text-xs text-gray-600">{cinema.totalHalls} залов</span>
+                    <span className="text-xs text-gray-600">Нет залов</span>
                   )}
                 </div>
               </div>
@@ -1583,8 +1501,7 @@ function CinemaPanel({
   const isNew = !cinema;
   const [form, setForm] = useState<any>({
     ...cinema,
-    facilitiesStr: cinema?.facilities.join(", ") ?? "",
-    tagsStr: cinema?.infrastructureTags?.join(", ") ?? "",
+    facilitiesStr: cinema?.facilities?.join(", ") ?? "",
   });
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
@@ -1593,28 +1510,18 @@ function CinemaPanel({
   const handleSave = () => {
     if (!form.name?.trim()) return toast.error("Введите название кинотеатра");
     if (!form.city?.trim()) return toast.error("Введите город");
+    if (!form.address?.trim()) return toast.error("Введите адрес");
 
     onSave({
-      id: form.id ?? String(Date.now()),
+      id: form.id,
       name: form.name.trim(),
-      address: form.address?.trim() ?? "",
+      address: form.address.trim(),
       city: form.city.trim(),
       rating: Number(form.rating) || 4.5,
-      distance: form.distance,
-      latitude: Number(form.latitude) || 55.75,
-      longitude: Number(form.longitude) || 37.62,
       facilities: (form.facilitiesStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
       totalHalls: Number(form.totalHalls) || 1,
-      imageUrl:
-        form.imageUrl?.trim() ||
-        "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&h=400&fit=crop",
-      integrationLevel: (Number(form.integrationLevel) || 1) as 1 | 2 | 3,
-      phoneNumber: form.phoneNumber?.trim(),
-      infrastructureTags: (form.tagsStr ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
     });
   };
-
-  const intLevel = Number(form.integrationLevel) || 1;
 
   return (
     <SidePanel
@@ -1631,38 +1538,15 @@ function CinemaPanel({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Город *">
-            <FSelect value={form.city ?? "Москва"} onChange={(v) => set("city", v)}>
-              <option value="Москва">Москва</option>
-              <option value="Саратов">Саратов</option>
-              <option value="Аткарск">Аткарск</option>
-            </FSelect>
-          </Field>
-          <Field label="Уровень интеграции">
-            <FSelect
-              value={String(form.integrationLevel ?? 1)}
-              onChange={(v) => set("integrationLevel", parseInt(v) as 1 | 2 | 3)}
-            >
-              <option value="1">1 — Выбор мест</option>
-              <option value="2">2 — Общий вход</option>
-              <option value="3">3 — По телефону</option>
-            </FSelect>
-          </Field>
-        </div>
+        <Field label="Город *">
+          <FInput
+            value={form.city ?? ""}
+            onChange={(e) => set("city", e.target.value)}
+            placeholder="Москва"
+          />
+        </Field>
 
-        {/* Integration level hint */}
-        <div className={`text-xs px-3 py-2 rounded-lg border ${
-          intLevel === 1 ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400" :
-          intLevel === 2 ? "border-yellow-500/20 bg-yellow-500/5 text-yellow-400" :
-          "border-orange-500/20 bg-orange-500/5 text-orange-400"
-        }`}>
-          {intLevel === 1 && "Полный выбор мест с интерактивной схемой зала"}
-          {intLevel === 2 && "Бронирование без выбора конкретного места"}
-          {intLevel === 3 && "Бронирование только по звонку — укажите телефон"}
-        </div>
-
-        <Field label="Адрес">
+        <Field label="Адрес *">
           <FInput
             value={form.address ?? ""}
             onChange={(e) => set("address", e.target.value)}
@@ -1693,45 +1577,12 @@ function CinemaPanel({
           </Field>
         </div>
 
-        {intLevel === 3 && (
-          <Field label="Телефон для бронирования *">
-            <FInput
-              value={form.phoneNumber ?? ""}
-              onChange={(e) => set("phoneNumber", e.target.value)}
-              placeholder="+7 (000) 000-00-00"
-            />
-          </Field>
-        )}
-
         <Field label="Удобства (через запятую)">
           <FInput
             value={form.facilitiesStr ?? ""}
             onChange={(e) => set("facilitiesStr", e.target.value)}
             placeholder="IMAX, 4DX, Парковка, VIP"
           />
-        </Field>
-
-        <Field label="Инфраструктурные теги">
-          <FInput
-            value={form.tagsStr ?? ""}
-            onChange={(e) => set("tagsStr", e.target.value)}
-            placeholder="Карта, Apple Pay, Снеки, Бесплатный Wi-Fi"
-          />
-        </Field>
-
-        <Field label="URL изображения">
-          <FInput
-            value={form.imageUrl ?? ""}
-            onChange={(e) => set("imageUrl", e.target.value)}
-            placeholder=" https://images.unsplash.com/ …"
-          />
-          {form.imageUrl && (
-            <img
-              src={form.imageUrl}
-              alt="preview"
-              className="mt-2 h-28 w-full rounded-xl object-cover border border-white/10 bg-white/5"
-            />
-          )}
         </Field>
 
         <button
