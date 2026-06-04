@@ -22,7 +22,7 @@ func NewMovieService(repo repository.MovieRepository, logger *zap.Logger) *Movie
 	}
 }
 
-func (s *MovieService) GetAll() ([]*model.Movie, error) {
+func (s *MovieService) GetAll() ([]*repository.MoviePublicResponse, error) {
 	movies, err := s.repo.GetAll()
 	if err != nil {
 		s.logger.Error("failed to get movies", zap.Error(err))
@@ -32,7 +32,7 @@ func (s *MovieService) GetAll() ([]*model.Movie, error) {
 	return movies, nil
 }
 
-func (s *MovieService) GetByID(id int64) (*model.Movie, error) {
+func (s *MovieService) GetByID(id int64) (*repository.MoviePublicResponse, error) {
 	if id <= 0 {
 		return nil, ErrMovieNotFound
 	}

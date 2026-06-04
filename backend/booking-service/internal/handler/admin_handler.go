@@ -10,14 +10,15 @@ import (
 
 	"github.com/Seatify-org/seatify-common/model"
 	"github.com/gorilla/mux"
+	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
 	"go.uber.org/zap"
 )
 
 type AdminServiceInterface interface {
-	GetMovies() ([]model.Movie, error)
-	CreateMovie(movie *model.Movie) error
-	UpdateMovie(movie *model.Movie) error
+	GetMovies() ([]repository.MovieResponse, error)
+	CreateMovie(movie *repository.MovieResponse) error
+	UpdateMovie(movie *repository.MovieResponse) error
 	DeleteMovie(id int) error
 
 	GetCinemas() ([]model.Cinema, error)
@@ -50,6 +51,9 @@ type createMovieRequest struct {
 	BannerURL   string    `json:"banner_url"`
 	TrailerURL  string    `json:"trailer_url"`
 	Rating      float64   `json:"rating"`
+	Genre       []string  `json:"genre"`
+	Cast        []string  `json:"cast"`
+	Director    string    `json:"director"`
 }
 
 type updateMovieRequest struct {
@@ -61,6 +65,9 @@ type updateMovieRequest struct {
 	BannerURL   string    `json:"banner_url"`
 	TrailerURL  string    `json:"trailer_url"`
 	Rating      float64   `json:"rating"`
+	Genre       []string  `json:"genre"`
+	Cast        []string  `json:"cast"`
+	Director    string    `json:"director"`
 }
 
 type createCinemaRequest struct {
@@ -142,7 +149,7 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) boo
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return false
 	}
 	return true
@@ -276,10 +283,11 @@ func (h *AdminHandler) CreateMovie(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	movie := model.Movie{
+	movie := repository.MovieResponse{
 		Title: req.Title, Description: req.Description, Duration: req.Duration,
 		ReleaseDate: req.ReleaseDate, PosterURL: req.PosterURL,
 		BannerURL: req.BannerURL, TrailerURL: req.TrailerURL, Rating: req.Rating,
+		Genre: req.Genre, Cast: req.Cast, Director: req.Director,
 	}
 	if err := h.adminService.CreateMovie(&movie); err != nil {
 		h.logger.Error("create movie failed", zap.Error(err))
@@ -303,10 +311,11 @@ func (h *AdminHandler) UpdateMovie(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	movie := model.Movie{
+	movie := repository.MovieResponse{
 		ID: id, Title: req.Title, Description: req.Description, Duration: req.Duration,
 		ReleaseDate: req.ReleaseDate, PosterURL: req.PosterURL,
 		BannerURL: req.BannerURL, TrailerURL: req.TrailerURL, Rating: req.Rating,
+		Genre: req.Genre, Cast: req.Cast, Director: req.Director,
 	}
 	if err := h.adminService.UpdateMovie(&movie); err != nil {
 		h.logger.Error("update movie failed", zap.Error(err), zap.Int("movie_id", id))

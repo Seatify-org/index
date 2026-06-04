@@ -29,7 +29,7 @@ func NewAdminService(repo repository.AdminRepository, logger *zap.Logger) *Admin
 
 // ===== MOVIES =====
 
-func (s *AdminService) GetMovies() ([]model.Movie, error) {
+func (s *AdminService) GetMovies() ([]repository.MovieResponse, error) {
 	movies, err := s.repo.GetMovies()
 	if err != nil {
 		s.logger.Error("failed to get movies", zap.Error(err))
@@ -38,7 +38,7 @@ func (s *AdminService) GetMovies() ([]model.Movie, error) {
 	return movies, nil
 }
 
-func (s *AdminService) CreateMovie(movie *model.Movie) error {
+func (s *AdminService) CreateMovie(movie *repository.MovieResponse) error {
 	if movie == nil {
 		return errors.New("movie is nil")
 	}
@@ -55,7 +55,7 @@ func (s *AdminService) CreateMovie(movie *model.Movie) error {
 	return nil
 }
 
-func (s *AdminService) UpdateMovie(movie *model.Movie) error {
+func (s *AdminService) UpdateMovie(movie *repository.MovieResponse) error {
 	if movie == nil {
 		return errors.New("movie is nil")
 	}

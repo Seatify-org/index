@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/Seatify-org/seatify-common/model"
 )
@@ -12,9 +13,27 @@ var (
 	ErrSessionNotFound = errors.New("session not found")
 )
 
+// MoviePublicResponse — расширенная структура фильма для публичного API
+// Содержит genre, cast, director, которые отсутствуют в model.Movie
+type MoviePublicResponse struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Duration    int       `json:"duration_minutes"`
+	ReleaseDate time.Time `json:"release_date"`
+	PosterURL   string    `json:"poster_url"`
+	BannerURL   string    `json:"banner_url"`
+	TrailerURL  string    `json:"trailer_url"`
+	Rating      float64   `json:"rating"`
+	CreatedAt   time.Time `json:"created_at"`
+	Genre       []string  `json:"genre"`
+	Cast        []string  `json:"cast"`
+	Director    string    `json:"director"`
+}
+
 type MovieRepository interface {
-	GetAll() ([]*model.Movie, error)
-	GetByID(id int64) (*model.Movie, error)
+	GetAll() ([]*MoviePublicResponse, error)
+	GetByID(id int64) (*MoviePublicResponse, error)
 	GetSessionsByMovieID(movieID int64) ([]*model.Session, error)
 	GetSessionByID(id int64) (*model.Session, error)
 }
@@ -27,10 +46,11 @@ func NewPostgresMovieRepository(db *sql.DB) MovieRepository {
 	return &postgresMovieRepository{db: db}
 }
 
-func (r *postgresMovieRepository) GetAll() ([]*model.Movie, error) {
+func (r *postgresMovieRepository) GetAll() ([]*MoviePublicResponse, error) {
 	rows, err := r.db.Query(`
 		SELECT id, title, description, duration_minutes, release_date,
-		       poster_url, banner_url, trailer_url, rating, created_at
+		       poster_url, banner_url, trailer_url, rating, created_at,
+		       COALESCE(genre, ''), COALESCE("cast", ''), COALESCE(director, '')
 		FROM movies
 		ORDER BY id`)
 	if err != nil {
@@ -38,15 +58,16 @@ func (r *postgresMovieRepository) GetAll() ([]*model.Movie, error) {
 	}
 	defer rows.Close()
 
-	var movies []*model.Movie
+	var movies []*MoviePublicResponse
 	for rows.Next() {
-		movie := &model.Movie{}
+		movie := &MoviePublicResponse{}
 		var description sql.NullString
 		var releaseDate sql.NullTime
 		var posterURL sql.NullString
 		var bannerURL sql.NullString
 		var trailerURL sql.NullString
 		var rating sql.NullFloat64
+		var genreStr, castStr, directorStr string
 
 		err := rows.Scan(
 			&movie.ID,
@@ -59,6 +80,9 @@ func (r *postgresMovieRepository) GetAll() ([]*model.Movie, error) {
 			&trailerURL,
 			&rating,
 			&movie.CreatedAt,
+			&genreStr,
+			&castStr,
+			&directorStr,
 		)
 		if err != nil {
 			return nil, err
@@ -83,26 +107,33 @@ func (r *postgresMovieRepository) GetAll() ([]*model.Movie, error) {
 			movie.Rating = rating.Float64
 		}
 
+		// Используем функцию stringToStrings из admin_repository.go (тот же пакет)
+		movie.Genre = stringToStrings(genreStr)
+		movie.Cast = stringToStrings(castStr)
+		movie.Director = directorStr
+
 		movies = append(movies, movie)
 	}
 
 	return movies, rows.Err()
 }
 
-func (r *postgresMovieRepository) GetByID(id int64) (*model.Movie, error) {
+func (r *postgresMovieRepository) GetByID(id int64) (*MoviePublicResponse, error) {
 	query := `
 		SELECT id, title, description, duration_minutes, release_date,
-		       poster_url, banner_url, trailer_url, rating, created_at
+		       poster_url, banner_url, trailer_url, rating, created_at,
+		       COALESCE(genre, ''), COALESCE("cast", ''), COALESCE(director, '')
 		FROM movies
 		WHERE id = $1`
 
-	movie := &model.Movie{}
+	movie := &MoviePublicResponse{}
 	var description sql.NullString
 	var releaseDate sql.NullTime
 	var posterURL sql.NullString
 	var bannerURL sql.NullString
 	var trailerURL sql.NullString
 	var rating sql.NullFloat64
+	var genreStr, castStr, directorStr string
 
 	err := r.db.QueryRow(query, id).Scan(
 		&movie.ID,
@@ -115,6 +146,9 @@ func (r *postgresMovieRepository) GetByID(id int64) (*model.Movie, error) {
 		&trailerURL,
 		&rating,
 		&movie.CreatedAt,
+		&genreStr,
+		&castStr,
+		&directorStr,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrMovieNotFound
@@ -141,6 +175,10 @@ func (r *postgresMovieRepository) GetByID(id int64) (*model.Movie, error) {
 	if rating.Valid {
 		movie.Rating = rating.Float64
 	}
+
+	movie.Genre = stringToStrings(genreStr)
+	movie.Cast = stringToStrings(castStr)
+	movie.Director = directorStr
 
 	return movie, nil
 }

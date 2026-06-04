@@ -8,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/Seatify-org/seatify-common/model"
+	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
 	"go.uber.org/zap"
 )
 
 type MovieServiceInterface interface {
-	GetAll() ([]*model.Movie, error)
-	GetByID(id int64) (*model.Movie, error)
+	GetAll() ([]*repository.MoviePublicResponse, error)
+	GetByID(id int64) (*repository.MoviePublicResponse, error)
 	GetSessionsByMovieID(movieID int64) ([]*model.Session, error)
 	GetSessionByID(id int64) (*model.Session, error)
 }
@@ -49,7 +50,7 @@ func (h *MovieHandler) writeError(w http.ResponseWriter, status int, message str
 // @Summary Get all movies
 // @Tags movies
 // @Produce json
-// @Success 200 {array} model.Movie
+// @Success 200 {array} repository.MoviePublicResponse
 // @Failure 500 {object} map[string]string
 // @Router /movies [get]
 func (h *MovieHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +69,7 @@ func (h *MovieHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
 // @Tags movies
 // @Produce json
 // @Param id path int true "Movie ID"
-// @Success 200 {object} model.Movie
+// @Success 200 {object} repository.MoviePublicResponse
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
