@@ -36,6 +36,10 @@ func main() {
 	}
 	defer db.Close()
 
+	jwtSecret := getEnv("JWT_SECRET", "your-secret-key-change-in-production")
+	jwtMiddleware := middleware.JWTAuthMiddleware(jwtSecret)
+	adminMiddleware := middleware.RequireRole("admin")
+
 	router := mux.NewRouter()
 	router.Use(corsMiddleware)
 	router.Use(loggingMiddleware(logger))
@@ -55,23 +59,35 @@ func main() {
 	movieHandler := handler.NewMovieHandler(movieService, logger)
 	bookingHandler := handler.NewBookingHandler(bookingService, logger)
 
+	// Public: Movies
 	router.HandleFunc("/movies", movieHandler.GetMovies).Methods(http.MethodGet)
 	router.HandleFunc("/movies/{id:[0-9]+}", movieHandler.GetMovieByID).Methods(http.MethodGet)
 	router.HandleFunc("/movies/{id:[0-9]+}/sessions", movieHandler.GetSessionsByMovieID).Methods(http.MethodGet)
 	router.HandleFunc("/sessions/{id:[0-9]+}", movieHandler.GetSessionByID).Methods(http.MethodGet)
 
-	router.HandleFunc("/bookings", bookingHandler.CreateBooking).Methods(http.MethodPost)
-	router.HandleFunc("/bookings/{id:[0-9]+}", bookingHandler.GetBookingByID).Methods(http.MethodGet)
-	router.HandleFunc("/bookings/me", bookingHandler.GetMyBookings).Methods(http.MethodGet)
-	router.HandleFunc("/bookings/{id:[0-9]+}/confirm", bookingHandler.ConfirmBooking).Methods(http.MethodPatch)
-	router.HandleFunc("/bookings/{id:[0-9]+}/cancel", bookingHandler.CancelBooking).Methods(http.MethodPatch)
+	// Public: Bookings (защищены JWT middleware)
+	bookings := router.PathPrefix("/bookings").Subrouter()
+	bookings.Use(jwtMiddleware)
+	bookings.HandleFunc("", bookingHandler.CreateBooking).Methods(http.MethodPost)
+	bookings.HandleFunc("/{id:[0-9]+}", bookingHandler.GetBookingByID).Methods(http.MethodGet)
+	bookings.HandleFunc("/me", bookingHandler.GetMyBookings).Methods(http.MethodGet)
+	bookings.HandleFunc("/{id:[0-9]+}/confirm", bookingHandler.ConfirmBooking).Methods(http.MethodPatch)
+	bookings.HandleFunc("/{id:[0-9]+}/cancel", bookingHandler.CancelBooking).Methods(http.MethodPatch)
 
-	jwtSecret := getEnv("JWT_SECRET", "your-secret-key-change-in-production")
-	jwtMiddleware := middleware.JWTAuthMiddleware(jwtSecret)
-	adminMiddleware := middleware.RequireRole("admin")
+	// OPTIONS для публичных маршрутов (без JWT)
+	router.HandleFunc("/movies", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/movies/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/movies/{id:[0-9]+}/sessions", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/sessions/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
 
+	router.HandleFunc("/bookings", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/bookings/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/bookings/me", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/bookings/{id:[0-9]+}/confirm", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/bookings/{id:[0-9]+}/cancel", optionsHandler).Methods(http.MethodOptions)
+
+	// Admin routes
 	admin := router.PathPrefix("/admin").Subrouter()
-
 	admin.HandleFunc("/movies", adminHandler.GetMovies).Methods(http.MethodGet)
 	admin.HandleFunc("/movies", adminHandler.CreateMovie).Methods(http.MethodPost)
 	admin.HandleFunc("/movies/{id:[0-9]+}", adminHandler.UpdateMovie).Methods(http.MethodPut)

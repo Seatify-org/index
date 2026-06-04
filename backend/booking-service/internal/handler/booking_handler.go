@@ -8,6 +8,7 @@ import (
 
 	"github.com/Seatify-org/seatify-common/model"
 	"github.com/gorilla/mux"
+	"github.com/seatify/backend/booking-service/internal/middleware"
 	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
 	"go.uber.org/zap"
@@ -43,13 +44,22 @@ func NewBookingHandler(bookingService BookingServiceInterface, logger *zap.Logge
 	}
 }
 
+// getUserIDFromContext извлекает user_id из контекста (установлен JWT middleware)
+func getUserIDFromContext(r *http.Request) (int64, error) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
+	if !ok {
+		return 0, errors.New("user not authenticated")
+	}
+	return int64(userID), nil
+}
+
 // CreateBooking godoc
 // @Summary Create booking
 // @Description Create a new booking for the authenticated user
 // @Tags bookings
 // @Accept json
 // @Produce json
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer token"
 // @Param request body createBookingRequest true "Booking request"
 // @Success 201 {object} model.Booking
 // @Failure 400 {object} map[string]string
@@ -57,15 +67,9 @@ func NewBookingHandler(bookingService BookingServiceInterface, logger *zap.Logge
 // @Failure 500 {object} map[string]string
 // @Router /bookings [post]
 func (h *BookingHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.Header.Get("X-User-ID")
-	if userIDStr == "" {
-		writeError(w, http.StatusUnauthorized, "missing user id")
-		return
-	}
-
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	userID, err := getUserIDFromContext(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user id")
+		writeError(w, http.StatusUnauthorized, "user not authenticated")
 		return
 	}
 
@@ -137,22 +141,16 @@ func (h *BookingHandler) GetBookingByID(w http.ResponseWriter, r *http.Request) 
 // @Description Returns all bookings for authenticated user
 // @Tags bookings
 // @Produce json
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer token"
 // @Success 200 {array} model.Booking
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /bookings/me [get]
 func (h *BookingHandler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.Header.Get("X-User-ID")
-	if userIDStr == "" {
-		writeError(w, http.StatusUnauthorized, "missing user id")
-		return
-	}
-
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	userID, err := getUserIDFromContext(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid user id")
+		writeError(w, http.StatusUnauthorized, "user not authenticated")
 		return
 	}
 
