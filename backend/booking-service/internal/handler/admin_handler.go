@@ -21,6 +21,7 @@ type AdminServiceInterface interface {
 	DeleteMovie(id int) error
 
 	GetCinemas() ([]model.Cinema, error)
+	GetCinemaByID(id int64) (*model.Cinema, error)
 	CreateCinema(cinema *model.Cinema) error
 	UpdateCinema(cinema *model.Cinema) error
 	DeleteCinema(id int) error
@@ -29,6 +30,7 @@ type AdminServiceInterface interface {
 	CreateHall(hall *model.Hall) error
 
 	GetSessions() ([]model.Session, error)
+	GetSessionsByCinemaID(cinemaID int64) ([]model.Session, error)
 	CreateSession(session *model.Session) error
 	UpdateSession(session *model.Session) error
 	DeleteSession(id int) error
@@ -40,25 +42,25 @@ type AdminHandler struct {
 }
 
 type createMovieRequest struct {
-	Title       string    `json:"title" example:"Dune: Part Two"`
-	Description string    `json:"description" example:"Epic sci-fi film"`
-	Duration    int       `json:"duration_minutes" example:"166"`
-	ReleaseDate time.Time `json:"release_date" example:"2024-03-01T00:00:00Z"`
-	PosterURL   string    `json:"poster_url" example:"https://example.com/poster.jpg"`
-	BannerURL   string    `json:"banner_url" example:"https://example.com/banner.jpg"`
-	TrailerURL  string    `json:"trailer_url" example:"https://example.com/trailer.mp4"`
-	Rating      float64   `json:"rating" example:"8.7"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Duration    int       `json:"duration_minutes"`
+	ReleaseDate time.Time `json:"release_date"`
+	PosterURL   string    `json:"poster_url"`
+	BannerURL   string    `json:"banner_url"`
+	TrailerURL  string    `json:"trailer_url"`
+	Rating      float64   `json:"rating"`
 }
 
 type updateMovieRequest struct {
-	Title       string    `json:"title" example:"Dune: Part Two"`
-	Description string    `json:"description" example:"Epic sci-fi film"`
-	Duration    int       `json:"duration_minutes" example:"166"`
-	ReleaseDate time.Time `json:"release_date" example:"2024-03-01T00:00:00Z"`
-	PosterURL   string    `json:"poster_url" example:"https://example.com/poster.jpg"`
-	BannerURL   string    `json:"banner_url" example:"https://example.com/banner.jpg"`
-	TrailerURL  string    `json:"trailer_url" example:"https://example.com/trailer.mp4"`
-	Rating      float64   `json:"rating" example:"8.7"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Duration    int       `json:"duration_minutes"`
+	ReleaseDate time.Time `json:"release_date"`
+	PosterURL   string    `json:"poster_url"`
+	BannerURL   string    `json:"banner_url"`
+	TrailerURL  string    `json:"trailer_url"`
+	Rating      float64   `json:"rating"`
 }
 
 type createCinemaRequest struct {
@@ -82,30 +84,36 @@ type updateCinemaRequest struct {
 }
 
 type createHallRequest struct {
-	CinemaID    int    `json:"cinema_id" example:"1"`
-	Name        string `json:"name" example:"VIP Hall 1"`
-	Rows        int    `json:"rows" example:"10"`
-	SeatsPerRow int    `json:"seats_per_row" example:"10"`
+	CinemaID    int    `json:"cinema_id"`
+	Name        string `json:"name"`
+	Rows        int    `json:"rows"`
+	SeatsPerRow int    `json:"seats_per_row"`
 }
 
 type createSessionRequest struct {
-	MovieID        int       `json:"movie_id" example:"1"`
-	HallID         int       `json:"hall_id" example:"1"`
-	StartTime      time.Time `json:"start_time" example:"2026-05-29T18:00:00Z"`
-	BasePriceCents int       `json:"base_price_cents" example:"1200"`
+	MovieID        int       `json:"movie_id"`
+	HallID         int       `json:"hall_id"`
+	StartTime      time.Time `json:"start_time"`
+	BasePriceCents int       `json:"base_price_cents"`
 }
 
 type updateSessionRequest struct {
-	MovieID        int       `json:"movie_id" example:"1"`
-	HallID         int       `json:"hall_id" example:"1"`
-	StartTime      time.Time `json:"start_time" example:"2026-05-29T18:00:00Z"`
-	BasePriceCents int       `json:"base_price_cents" example:"1200"`
+	MovieID        int       `json:"movie_id"`
+	HallID         int       `json:"hall_id"`
+	StartTime      time.Time `json:"start_time"`
+	BasePriceCents int       `json:"base_price_cents"`
 }
 
 type sessionResponse struct {
 	ID             int       `json:"id"`
 	MovieID        int       `json:"movie_id"`
+	MovieTitle     string    `json:"movie_title,omitempty"`
 	HallID         int       `json:"hall_id"`
+	HallName       string    `json:"hall_name,omitempty"`
+	CinemaID       int       `json:"cinema_id,omitempty"`
+	CinemaName     string    `json:"cinema_name,omitempty"`
+	CinemaAddress  string    `json:"cinema_address,omitempty"`
+	CinemaCity     string    `json:"cinema_city,omitempty"`
 	StartTime      time.Time `json:"start_time"`
 	BasePriceCents int       `json:"base_price_cents"`
 }
@@ -114,7 +122,6 @@ func NewAdminHandler(adminService AdminServiceInterface, logger *zap.Logger) *Ad
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-
 	return &AdminHandler{
 		adminService: adminService,
 		logger:       logger,
@@ -134,15 +141,10 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-
 	if err := dec.Decode(dst); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return false
 	}
-
-	if dec.Decode(&struct{}{}) != nil && !errors.Is(dec.Decode(&struct{}{}), nil) {
-	}
-
 	return true
 }
 
@@ -174,17 +176,11 @@ func validateUpdateMovieRequest(req updateMovieRequest) error {
 }
 
 func validateCinemaRequest(req createCinemaRequest) error {
-	if err := requireNonEmpty(req.Name, "name"); err != nil {
-		return err
-	}
-	return nil
+	return requireNonEmpty(req.Name, "name")
 }
 
 func validateUpdateCinemaRequest(req updateCinemaRequest) error {
-	if err := requireNonEmpty(req.Name, "name"); err != nil {
-		return err
-	}
-	return nil
+	return requireNonEmpty(req.Name, "name")
 }
 
 func validateHallRequest(req createHallRequest) error {
@@ -239,7 +235,13 @@ func toSessionResponse(sess model.Session) sessionResponse {
 	return sessionResponse{
 		ID:             sess.ID,
 		MovieID:        sess.MovieID,
+		MovieTitle:     sess.MovieTitle,
 		HallID:         sess.HallID,
+		HallName:       sess.HallName,
+		CinemaID:       sess.CinemaID,
+		CinemaName:     sess.CinemaName,
+		CinemaAddress:  sess.CinemaAddress,
+		CinemaCity:     sess.CinemaCity,
 		StartTime:      sess.StartTime,
 		BasePriceCents: sess.BasePriceCents,
 	}
@@ -253,14 +255,8 @@ func toSessionResponses(sessions []model.Session) []sessionResponse {
 	return result
 }
 
-// GetMovies godoc
-// @Summary Get admin movies
-// @Description Returns all movies for admin management
-// @Tags admin
-// @Produce json
-// @Success 200 {array} model.Movie
-// @Failure 500 {object} map[string]string
-// @Router /admin/movies [get]
+// ===== MOVIES =====
+
 func (h *AdminHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
 	movies, err := h.adminService.GetMovies()
 	if err != nil {
@@ -268,138 +264,74 @@ func (h *AdminHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to fetch movies")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, movies)
 }
 
-// CreateMovie godoc
-// @Summary Create movie
-// @Description Creates a new movie
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param request body createMovieRequest true "Movie payload"
-// @Success 201 {object} model.Movie
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/movies [post]
 func (h *AdminHandler) CreateMovie(w http.ResponseWriter, r *http.Request) {
 	var req createMovieRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateMovieRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	movie := model.Movie{
-		Title:       req.Title,
-		Description: req.Description,
-		Duration:    req.Duration,
-		ReleaseDate: req.ReleaseDate,
-		PosterURL:   req.PosterURL,
-		BannerURL:   req.BannerURL,
-		TrailerURL:  req.TrailerURL,
-		Rating:      req.Rating,
+		Title: req.Title, Description: req.Description, Duration: req.Duration,
+		ReleaseDate: req.ReleaseDate, PosterURL: req.PosterURL,
+		BannerURL: req.BannerURL, TrailerURL: req.TrailerURL, Rating: req.Rating,
 	}
-
 	if err := h.adminService.CreateMovie(&movie); err != nil {
 		h.logger.Error("create movie failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "failed to create movie")
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, movie)
 }
 
-// UpdateMovie godoc
-// @Summary Update movie
-// @Description Updates movie by ID
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param id path int true "Movie ID"
-// @Param request body updateMovieRequest true "Movie payload"
-// @Success 200 {object} model.Movie
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/movies/{id} [put]
 func (h *AdminHandler) UpdateMovie(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid movie id")
 		return
 	}
-
 	var req updateMovieRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateUpdateMovieRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	movie := model.Movie{
-		ID:          id,
-		Title:       req.Title,
-		Description: req.Description,
-		Duration:    req.Duration,
-		ReleaseDate: req.ReleaseDate,
-		PosterURL:   req.PosterURL,
-		BannerURL:   req.BannerURL,
-		TrailerURL:  req.TrailerURL,
-		Rating:      req.Rating,
+		ID: id, Title: req.Title, Description: req.Description, Duration: req.Duration,
+		ReleaseDate: req.ReleaseDate, PosterURL: req.PosterURL,
+		BannerURL: req.BannerURL, TrailerURL: req.TrailerURL, Rating: req.Rating,
 	}
-
 	if err := h.adminService.UpdateMovie(&movie); err != nil {
 		h.logger.Error("update movie failed", zap.Error(err), zap.Int("movie_id", id))
 		writeError(w, mapAdminError(err), "failed to update movie")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, movie)
 }
 
-// DeleteMovie godoc
-// @Summary Delete movie
-// @Description Deletes movie by ID
-// @Tags admin
-// @Produce json
-// @Param id path int true "Movie ID"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/movies/{id} [delete]
 func (h *AdminHandler) DeleteMovie(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid movie id")
 		return
 	}
-
 	if err := h.adminService.DeleteMovie(id); err != nil {
 		h.logger.Error("delete movie failed", zap.Error(err), zap.Int("movie_id", id))
 		writeError(w, mapAdminError(err), "failed to delete movie")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, map[string]string{"message": "movie deleted"})
 }
 
-// GetCinemas godoc
-// @Summary Get cinemas
-// @Description Returns all cinemas
-// @Tags admin
-// @Produce json
-// @Success 200 {array} model.Cinema
-// @Failure 500 {object} map[string]string
-// @Router /admin/cinemas [get]
+// ===== CINEMAS =====
+
 func (h *AdminHandler) GetCinemas(w http.ResponseWriter, r *http.Request) {
 	cinemas, err := h.adminService.GetCinemas()
 	if err != nil {
@@ -407,203 +339,127 @@ func (h *AdminHandler) GetCinemas(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to fetch cinemas")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, cinemas)
 }
 
-// CreateCinema godoc
-// @Summary Create cinema
-// @Description Creates a new cinema
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param request body createCinemaRequest true "Cinema payload"
-// @Success 201 {object} model.Cinema
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/cinemas [post]
+func (h *AdminHandler) GetCinemaByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid cinema id")
+		return
+	}
+	cinema, err := h.adminService.GetCinemaByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "cinema not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, cinema)
+}
+
 func (h *AdminHandler) CreateCinema(w http.ResponseWriter, r *http.Request) {
 	var req createCinemaRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateCinemaRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	cinema := model.Cinema{
-		Name:        req.Name,
-		Address:     req.Address,
-		City:        req.City,
-		Latitude:    req.Latitude,
-		Longitude:   req.Longitude,
-		Rating:      req.Rating,
-		PhoneNumber: req.Phone,
+		Name: req.Name, Address: req.Address, City: req.City,
+		Latitude: req.Latitude, Longitude: req.Longitude,
+		Rating: req.Rating, PhoneNumber: req.Phone,
 	}
-
 	if err := h.adminService.CreateCinema(&cinema); err != nil {
 		h.logger.Error("create cinema failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "failed to create cinema")
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, cinema)
 }
 
-// UpdateCinema godoc
-// @Summary Update cinema
-// @Description Updates cinema by ID
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param id path int true "Cinema ID"
-// @Param request body updateCinemaRequest true "Cinema payload"
-// @Success 200 {object} model.Cinema
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/cinemas/{id} [put]
 func (h *AdminHandler) UpdateCinema(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid cinema id")
 		return
 	}
-
 	var req updateCinemaRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateUpdateCinemaRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	cinema := model.Cinema{
-		ID:          id,
-		Name:        req.Name,
-		Address:     req.Address,
-		City:        req.City,
-		Latitude:    req.Latitude,
-		Longitude:   req.Longitude,
-		Rating:      req.Rating,
-		PhoneNumber: req.Phone,
+		ID: id, Name: req.Name, Address: req.Address, City: req.City,
+		Latitude: req.Latitude, Longitude: req.Longitude,
+		Rating: req.Rating, PhoneNumber: req.Phone,
 	}
-
 	if err := h.adminService.UpdateCinema(&cinema); err != nil {
 		h.logger.Error("update cinema failed", zap.Error(err), zap.Int("cinema_id", id))
 		writeError(w, mapAdminError(err), "failed to update cinema")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, cinema)
 }
 
-// DeleteCinema godoc
-// @Summary Delete cinema
-// @Description Deletes cinema by ID
-// @Tags admin
-// @Produce json
-// @Param id path int true "Cinema ID"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/cinemas/{id} [delete]
 func (h *AdminHandler) DeleteCinema(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid cinema id")
 		return
 	}
-
 	if err := h.adminService.DeleteCinema(id); err != nil {
 		h.logger.Error("delete cinema failed", zap.Error(err), zap.Int("cinema_id", id))
 		writeError(w, mapAdminError(err), "failed to delete cinema")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, map[string]string{"message": "cinema deleted"})
 }
 
-// GetHallsByCinema godoc
-// @Summary Get halls by cinema
-// @Description Returns all halls for cinema
-// @Tags admin
-// @Produce json
-// @Param cinemaId path int true "Cinema ID"
-// @Success 200 {array} model.Hall
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/cinemas/{cinemaId}/halls [get]
+// ===== HALLS =====
+
 func (h *AdminHandler) GetHallsByCinema(w http.ResponseWriter, r *http.Request) {
 	cinemaID, err := strconv.Atoi(mux.Vars(r)["cinemaId"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid cinema id")
 		return
 	}
-
 	halls, err := h.adminService.GetHallsByCinema(cinemaID)
 	if err != nil {
 		h.logger.Error("get halls failed", zap.Error(err), zap.Int("cinema_id", cinemaID))
 		writeError(w, mapAdminError(err), "failed to fetch halls")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, halls)
 }
 
-// CreateHall godoc
-// @Summary Create hall
-// @Description Creates a new hall
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param request body createHallRequest true "Hall payload"
-// @Success 201 {object} model.Hall
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/halls [post]
 func (h *AdminHandler) CreateHall(w http.ResponseWriter, r *http.Request) {
 	var req createHallRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateHallRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	hall := model.Hall{
-		CinemaID:    req.CinemaID,
-		Name:        req.Name,
-		Rows:        req.Rows,
-		SeatsPerRow: req.SeatsPerRow,
-		TotalSeats:  req.Rows * req.SeatsPerRow,
+		CinemaID: req.CinemaID, Name: req.Name,
+		Rows: req.Rows, SeatsPerRow: req.SeatsPerRow,
+		TotalSeats: req.Rows * req.SeatsPerRow,
 	}
-
 	if err := h.adminService.CreateHall(&hall); err != nil {
-		h.logger.Error("create hall failed", zap.Error(err), zap.Int("cinema_id", hall.CinemaID))
+		h.logger.Error("create hall failed", zap.Error(err))
 		writeError(w, mapAdminError(err), "failed to create hall")
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, hall)
 }
 
-// GetSessions godoc
-// @Summary Get sessions
-// @Description Returns all sessions
-// @Tags admin
-// @Produce json
-// @Success 200 {array} sessionResponse
-// @Failure 500 {object} map[string]string
-// @Router /admin/sessions [get]
+// ===== SESSIONS =====
+
 func (h *AdminHandler) GetSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.adminService.GetSessions()
 	if err != nil {
@@ -611,119 +467,82 @@ func (h *AdminHandler) GetSessions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to fetch sessions")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, toSessionResponses(sessions))
 }
 
-// CreateSession godoc
-// @Summary Create session
-// @Description Creates a new session
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param request body createSessionRequest true "Session payload"
-// @Success 201 {object} sessionResponse
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/sessions [post]
+func (h *AdminHandler) GetSessionsByCinema(w http.ResponseWriter, r *http.Request) {
+	cinemaID, err := strconv.ParseInt(mux.Vars(r)["cinemaId"], 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid cinema id")
+		return
+	}
+	sessions, err := h.adminService.GetSessionsByCinemaID(cinemaID)
+	if err != nil {
+		h.logger.Error("get sessions by cinema failed", zap.Error(err), zap.Int64("cinema_id", cinemaID))
+		writeError(w, http.StatusInternalServerError, "failed to fetch sessions")
+		return
+	}
+	writeJSON(w, http.StatusOK, toSessionResponses(sessions))
+}
+
 func (h *AdminHandler) CreateSession(w http.ResponseWriter, r *http.Request) {
 	var req createSessionRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateSessionRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	sess := model.Session{
-		MovieID:        req.MovieID,
-		HallID:         req.HallID,
-		StartTime:      req.StartTime,
-		BasePriceCents: req.BasePriceCents,
+		MovieID: req.MovieID, HallID: req.HallID,
+		StartTime: req.StartTime, BasePriceCents: req.BasePriceCents,
 	}
-
 	if err := h.adminService.CreateSession(&sess); err != nil {
 		h.logger.Error("create session failed", zap.Error(err))
 		writeError(w, http.StatusInternalServerError, "failed to create session")
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, toSessionResponse(sess))
 }
 
-// UpdateSession godoc
-// @Summary Update session
-// @Description Updates session by ID
-// @Tags admin
-// @Accept json
-// @Produce json
-// @Param id path int true "Session ID"
-// @Param request body updateSessionRequest true "Session payload"
-// @Success 200 {object} sessionResponse
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/sessions/{id} [put]
 func (h *AdminHandler) UpdateSession(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid session id")
 		return
 	}
-
 	var req updateSessionRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
 	}
-
 	if err := validateUpdateSessionRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
 	sess := model.Session{
-		ID:             id,
-		MovieID:        req.MovieID,
-		HallID:         req.HallID,
-		StartTime:      req.StartTime,
-		BasePriceCents: req.BasePriceCents,
+		ID: id, MovieID: req.MovieID, HallID: req.HallID,
+		StartTime: req.StartTime, BasePriceCents: req.BasePriceCents,
 	}
-
 	if err := h.adminService.UpdateSession(&sess); err != nil {
 		h.logger.Error("update session failed", zap.Error(err), zap.Int("session_id", id))
 		writeError(w, mapAdminError(err), "failed to update session")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, toSessionResponse(sess))
 }
 
-// DeleteSession godoc
-// @Summary Delete session
-// @Description Deletes session by ID
-// @Tags admin
-// @Produce json
-// @Param id path int true "Session ID"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /admin/sessions/{id} [delete]
 func (h *AdminHandler) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid session id")
 		return
 	}
-
 	if err := h.adminService.DeleteSession(id); err != nil {
 		h.logger.Error("delete session failed", zap.Error(err), zap.Int("session_id", id))
 		writeError(w, mapAdminError(err), "failed to delete session")
 		return
 	}
-
 	writeJSON(w, http.StatusOK, map[string]string{"message": "session deleted"})
 }
 

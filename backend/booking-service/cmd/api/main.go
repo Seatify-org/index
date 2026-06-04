@@ -65,6 +65,12 @@ func main() {
 	router.HandleFunc("/movies/{id:[0-9]+}/sessions", movieHandler.GetSessionsByMovieID).Methods(http.MethodGet)
 	router.HandleFunc("/sessions/{id:[0-9]+}", movieHandler.GetSessionByID).Methods(http.MethodGet)
 
+	// Public: Cinemas (без JWT)
+	router.HandleFunc("/cinemas", adminHandler.GetCinemas).Methods(http.MethodGet)
+	router.HandleFunc("/cinemas/{id:[0-9]+}", adminHandler.GetCinemaByID).Methods(http.MethodGet)
+	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/halls", adminHandler.GetHallsByCinema).Methods(http.MethodGet)
+	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/sessions", adminHandler.GetSessionsByCinema).Methods(http.MethodGet)
+
 	// Public: Bookings (защищены JWT middleware)
 	bookings := router.PathPrefix("/bookings").Subrouter()
 	bookings.Use(jwtMiddleware)
@@ -74,11 +80,16 @@ func main() {
 	bookings.HandleFunc("/{id:[0-9]+}/confirm", bookingHandler.ConfirmBooking).Methods(http.MethodPatch)
 	bookings.HandleFunc("/{id:[0-9]+}/cancel", bookingHandler.CancelBooking).Methods(http.MethodPatch)
 
-	// OPTIONS для публичных маршрутов (без JWT)
+	// OPTIONS для публичных маршрутов
 	router.HandleFunc("/movies", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/movies/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/movies/{id:[0-9]+}/sessions", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/sessions/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+
+	router.HandleFunc("/cinemas", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/cinemas/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/halls", optionsHandler).Methods(http.MethodOptions)
+	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/sessions", optionsHandler).Methods(http.MethodOptions)
 
 	router.HandleFunc("/bookings", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/bookings/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
