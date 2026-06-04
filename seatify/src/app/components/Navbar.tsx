@@ -287,7 +287,7 @@ export default function Navbar() {
                 {/* Moving Knob */}
                 <motion.div
                   className="absolute inset-0.5 rounded-full liquid-gradient"
-                  animate={{ x: theme === 'dark' ? 0 : 22 }}
+                  animate={{ x: theme === 'dark' ? 0 : 27 }}
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   style={{ width: '22px' }}
                 >

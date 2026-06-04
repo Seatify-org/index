@@ -89,10 +89,10 @@ export default function Admin() {
         const apiMovies = await fetchMovies();
         const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
           ...m,
-          genre: m.genre || ["Фантастика", "Боевик"],
+          genre: m.genre || [],
           rating: m.rating || 7.5,
-          cast: m.cast || ["Актер 1", "Актер 2"],
-          director: m.director || "Режиссер",
+          cast: m.cast || [],
+          director: m.director || "",
         }));
         setMoviesList(extendedMovies);
 
@@ -102,8 +102,8 @@ export default function Admin() {
         
         const flatSessions: ExtendedSession[] = sessionsArrays.flat().map(s => ({
           ...s,
-          date: new Date(s.start_time).toISOString().split('T')[0],
-          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+          date: s.start_time.substring(0, 10),
+          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
           price: s.base_price_cents / 100,
         }));
         setSessionsList(flatSessions);
@@ -308,27 +308,32 @@ function MoviesTab({
 
   const handleSaveMovie = async (data: any) => {
     try {
-      const { genre, cast, director, id, ...cleanData } = data;
+      const { id, ...cleanData } = data;
+      
+      // Формируем payload с genre/cast/director
+      const moviePayload = {
+        ...cleanData,
+        genre: Array.isArray(data.genre) ? data.genre : [],
+        cast: Array.isArray(data.cast) ? data.cast : [],
+        director: data.director || "",
+      };
       
       if (id) {
-        await updateMovie(id, cleanData);
+        await updateMovie(id, moviePayload);
         setMovies((p) => p.map((m) => (m.id === id ? { 
           ...m, 
-          ...cleanData, 
-          genre: data.genre ?? m.genre ?? [], 
-          cast: data.cast ?? m.cast ?? [], 
-          director: data.director ?? m.director ?? "",
-          rating: data.rating ?? m.rating ?? 7.5,
+          ...moviePayload,
+          rating: moviePayload.rating ?? m.rating ?? 7.5,
         } : m)));
         toast.success("Фильм обновлён");
       } else {
-        const newMovie = await createMovie(cleanData);
+        const newMovie = await createMovie(moviePayload);
         setMovies((p) => [...p, { 
           ...newMovie, 
-          genre: data.genre ?? [], 
-          cast: data.cast ?? [], 
-          director: data.director ?? "",
-          rating: data.rating ?? 7.5,
+          genre: moviePayload.genre,
+          cast: moviePayload.cast,
+          director: moviePayload.director,
+          rating: moviePayload.rating ?? 7.5,
         }]);
         toast.success("Фильм добавлен");
       }
@@ -472,8 +477,9 @@ function MoviePanel({
   const isNew = !movie;
   const [form, setForm] = useState<any>({
     ...movie,
-    genreStr: movie?.genre.join(", ") ?? "",
-    castStr: movie?.cast.join(", ") ?? "",
+    release_date: movie?.release_date ? movie.release_date.substring(0, 10) : TODAY,
+    genreStr: movie?.genre?.join(", ") ?? "",
+    castStr: movie?.cast?.join(", ") ?? "",
   });
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
@@ -487,7 +493,7 @@ function MoviePanel({
       title: form.title.trim(),
       description: form.description?.trim() ?? "",
       duration_minutes: Number(form.duration_minutes) || 90,
-      release_date: `${form.release_date ?? TODAY}T00:00:00Z`,
+      release_date: `${(form.release_date ?? TODAY).substring(0, 10)}T00:00:00Z`,
       poster_url: form.poster_url!.trim(),
       banner_url: form.banner_url?.trim() || form.poster_url!.trim(),
       trailer_url: form.trailer_url?.trim() ?? "",
@@ -719,8 +725,8 @@ function SessionsTab({
       });
       setSessions((p) => [...p, { 
         ...created, 
-        date: new Date(created.start_time).toISOString().split('T')[0],
-        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        date: created.start_time.substring(0, 10),
+        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
         price: created.base_price_cents / 100
       }]);
       toast.success("Сеанс продублирован");
@@ -751,8 +757,8 @@ function SessionsTab({
       
       setSessions((p) => [...p, { 
         ...created,
-        date: new Date(created.start_time).toISOString().split('T')[0],
-        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        date: created.start_time.substring(0, 10),
+        time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
         price: created.base_price_cents / 100
       }]);
       setAddOpen(false);
@@ -774,8 +780,8 @@ function SessionsTab({
         });
         createdSessions.push({
           ...created,
-          date: new Date(created.start_time).toISOString().split('T')[0],
-          time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+          date: created.start_time.substring(0, 10),
+          time: new Date(created.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
           price: created.base_price_cents / 100
         });
       }

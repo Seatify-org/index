@@ -92,15 +92,14 @@ export default function MovieDetails() {
           return;
         }
 
-        // Расширяем данные фильма заглушками (жанры, рейтинг и т.д.)
         const extendedMovie: ExtendedMovie = {
           ...foundMovie,
-          genre: ["Фантастика", "Боевик"], // Заглушка
-          rating: 8.5,                     // Заглушка
-          bannerUrl: foundMovie.poster_url,
-          trailerUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", // Заглушка
-          cast: ["Актер 1", "Актер 2"],
-          director: "Режиссер",
+          genre: foundMovie.genre || [],
+          rating: foundMovie.rating || 7.5,
+          bannerUrl: foundMovie.banner_url || foundMovie.poster_url,
+          trailerUrl: foundMovie.trailer_url || "",
+          cast: foundMovie.cast || [],
+          director: foundMovie.director || "",
         };
         setMovie(extendedMovie);
 
@@ -126,10 +125,10 @@ export default function MovieDetails() {
 
           return {
             ...s,
-            time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-            date: new Date(s.start_time).toISOString().split('T')[0],
+            time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+            date: s.start_time.substring(0, 10),
             price: s.base_price_cents / 100,
-            hallName: `Зал ${s.hall_id}`,
+            hallName: s.hall_name || `Зал ${s.hall_id}`,
             cinemaId: s.cinema_id,
           };
         });
@@ -303,7 +302,7 @@ export default function MovieDetails() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  <span>{movie.duration} мин</span>
+                  <span>{movie.duration_minutes} мин</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />

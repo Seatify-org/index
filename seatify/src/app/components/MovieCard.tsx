@@ -135,7 +135,7 @@ export default function MovieCard({ movie, selectedCinema, selectedDate }: Movie
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <div className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
-                  <span>{movie.duration}m</span>
+                  <span>{movie.duration_minutes} мин</span>
                 </div>
                 <span className="truncate">{movie.genre.slice(1, 2).join('')}</span>
               </div>

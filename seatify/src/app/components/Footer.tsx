@@ -163,23 +163,23 @@ export default function Footer() {
                   <div className="flex flex-col gap-2 w-full">
                     <a
                       href="#"
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-black/80 hover:bg-black rounded-xl transition-all hover:scale-105 border border-white/20"
+                      className="flex items-center justify-center gap-2 px-4 py-2 glass hover:bg-white/10 rounded-xl transition-all hover:scale-105"
                     >
-                      <Apple className="w-6 h-6" />
+                      <Apple className="w-6 h-6 text-white dark:text-white" />
                       <div className="text-left">
-                        <div className="text-[9px] text-gray-300">Загрузите в</div>
-                        <div className="text-sm font-semibold">App Store</div>
+                        <div className="text-[9px] text-gray-300 dark:text-gray-300">Загрузите в</div>
+                        <div className="text-sm font-semibold text-white dark:text-white">App Store</div>
                       </div>
                     </a>
                     
                     <a
                       href="#"
-                      className="flex items-center justify-center gap-2 px-4 py-2 bg-black/80 hover:bg-black rounded-xl transition-all hover:scale-105 border border-white/20"
+                      className="flex items-center justify-center gap-2 px-4 py-2 glass hover:bg-white/10 rounded-xl transition-all hover:scale-105"
                     >
-                      <Play className="w-5 h-5" />
+                      <Play className="w-5 h-5 text-white" />
                       <div className="text-left">
                         <div className="text-[9px] text-gray-300">Доступно в</div>
-                        <div className="text-sm font-semibold">Google Play</div>
+                        <div className="text-sm font-semibold text-white">Google Play</div>
                       </div>
                     </a>
                   </div>
@@ -212,7 +212,7 @@ export default function Footer() {
                 className="flex items-center gap-2 text-xs text-gray-400 hover:text-purple-400 transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" />
-                support@seatify.com
+                support@seatify.ru
               </a>
               <a 
                 href="tel:+1234567890" 

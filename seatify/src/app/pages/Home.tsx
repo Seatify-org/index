@@ -100,9 +100,12 @@ export default function Home() {
         
         const flatSessions: ExtendedSession[] = sessionsArrays.flat().map(s => ({
           ...s,
-          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-          date: new Date(s.start_time).toISOString().split('T')[0],
+          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+          date: s.start_time.substring(0, 10),
           price: s.base_price_cents / 100,
+          hallName: s.hall_name || `Зал ${s.hall_id}`,
+          movieId: s.movie_id,
+          cinemaId: s.cinema_id,
         }));
         setSessions(flatSessions);
 
@@ -255,7 +258,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#05050acc]">
+      <div className="min-h-screen flex items-center justify-center ">
         <div className="text-purple-400 text-xl font-semibold animate-pulse">Загрузка афиши...</div>
       </div>
     );

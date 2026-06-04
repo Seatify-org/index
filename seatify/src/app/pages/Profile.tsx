@@ -71,9 +71,9 @@ export default function Profile() {
                 ...booking,
                 session: {
                   id: session.id,
-                  time: new Date(session.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-                  date: new Date(session.start_time).toISOString().split('T')[0],
-                  hallName: `Зал ${session.hall_id}`,
+                  time: new Date(session.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+                  date: session.start_time.substring(0, 10),
+                  hallName: session.hall_name || `Зал ${session.hall_id}`,
                   movieId: session.movie_id,
                   cinemaId: session.cinema_id,
                   cinemaName: session.cinema_name || `Кинотеатр ${session.cinema_id}`,

@@ -56,8 +56,8 @@ export default function CinemaSchedule() {
 
         const extendedSessions: ExtendedSession[] = cinemaSessions.map(s => ({
           ...s,
-          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
-          date: new Date(s.start_time).toISOString().split('T')[0],
+          time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+          date: s.start_time.substring(0, 10),
           price: s.base_price_cents / 100,
         }));
         setSessions(extendedSessions);
