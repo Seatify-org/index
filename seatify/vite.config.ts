@@ -5,18 +5,39 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [
-    // The React and Tailwind plugins are both required, even if
-    // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
   },
-
-  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  // Proxy для обхода CORS в dev-режиме
+  server: {
+    proxy: {
+      '/auth': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/movies': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/sessions': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/bookings': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+    },
+  },
 })
