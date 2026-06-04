@@ -2,36 +2,24 @@ import { useParams, useNavigate } from "react-router";
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "motion/react";
 import { MapPin, Star, Clock, Calendar, ArrowLeft, Film, ChevronLeft, ChevronRight } from "lucide-react";
-import { fetchMovies, fetchCinemaById, fetchSessionsByCinema, type Movie as ApiMovie, type Cinema as ApiCinema, type Session as ApiSession } from "../services/api";
+import { fetchCinemaById, fetchSessionsByCinema, type Cinema, type Session } from "../services/api";
 import { formatRub } from "../utils/formatRub";
 import { toast } from "sonner";
 
-interface ExtendedMovie extends ApiMovie {
-  genre: string[];
-  rating: number;
-  posterUrl: string;
-  duration: number;
-}
-
-interface ExtendedSession extends ApiSession {
+interface ExtendedSession extends Session {
   time: string;
   date: string;
   price: number;
-  hallName: string;
-  movieId: number;
-  cinemaId: number;
 }
 
 export default function CinemaSchedule() {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  const [cinema, setCinema] = useState<ApiCinema | null>(null);
-  const [movies, setMovies] = useState<ExtendedMovie[]>([]);
+  const [cinema, setCinema] = useState<Cinema | null>(null);
   const [sessions, setSessions] = useState<ExtendedSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Generate next 7 days for date selection
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
@@ -45,7 +33,6 @@ export default function CinemaSchedule() {
   
   const [selectedDate, setSelectedDate] = useState<string>(availableDates[0].toISOString().split('T')[0]);
 
-  // Загрузка данных
   useEffect(() => {
     const loadData = async () => {
       if (!id) return;
@@ -54,10 +41,8 @@ export default function CinemaSchedule() {
       try {
         const cinemaId = Number(id);
         
-        // Загружаем кинотеатр, фильмы и сеансы параллельно
-        const [cinemaData, apiMovies, cinemaSessions] = await Promise.all([
+        const [cinemaData, cinemaSessions] = await Promise.all([
           fetchCinemaById(cinemaId),
-          fetchMovies(),
           fetchSessionsByCinema(cinemaId),
         ]);
 
@@ -69,25 +54,11 @@ export default function CinemaSchedule() {
 
         setCinema(cinemaData);
 
-        // Расширяем данные фильмов
-        const extendedMovies: ExtendedMovie[] = apiMovies.map(m => ({
-          ...m,
-          genre: m.genre || ["Фантастика", "Боевик"],
-          rating: m.rating || 7.5,
-          posterUrl: m.poster_url,
-          duration: m.duration_minutes || 120,
-        }));
-        setMovies(extendedMovies);
-
-        // Расширяем данные сеансов
         const extendedSessions: ExtendedSession[] = cinemaSessions.map(s => ({
           ...s,
           time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
           date: new Date(s.start_time).toISOString().split('T')[0],
           price: s.base_price_cents / 100,
-          hallName: s.hall_name || `Зал ${s.hall_id}`,
-          movieId: s.movie_id,
-          cinemaId: s.cinema_id,
         }));
         setSessions(extendedSessions);
 
@@ -102,30 +73,44 @@ export default function CinemaSchedule() {
     loadData();
   }, [id, navigate]);
   
-  // Get all sessions for this cinema on selected date
+  // Фильтруем сеансы по выбранной дате
   const cinemaSessions = useMemo(() => {
-    return sessions.filter(s => s.cinemaId === Number(id) && s.date === selectedDate);
+    return sessions.filter(s => s.cinema_id === Number(id) && s.date === selectedDate);
   }, [id, selectedDate, sessions]);
   
-  // Group sessions by movie
+  // Группируем сеансы по фильмам
   const sessionsByMovie = useMemo(() => {
     const grouped = new Map<number, ExtendedSession[]>();
     
     cinemaSessions.forEach((session) => {
-      if (!grouped.has(session.movieId)) {
-        grouped.set(session.movieId, []);
+      if (!grouped.has(session.movie_id)) {
+        grouped.set(session.movie_id, []);
       }
-      grouped.get(session.movieId)!.push(session);
+      grouped.get(session.movie_id)!.push(session);
     });
     
-    // Sort sessions by time within each movie
     grouped.forEach((movieSessions) => {
       movieSessions.sort((a, b) => a.time.localeCompare(b.time));
     });
     
     return grouped;
   }, [cinemaSessions]);
+
+  // ✅ ПЕРЕМЕЩЁН СЮДА — перед ранними return
+  const uniqueMovies = useMemo(() => {
+    const movieMap = new Map<number, { id: number; title: string }>();
+    cinemaSessions.forEach(s => {
+      if (s.movie_id && !movieMap.has(s.movie_id)) {
+        movieMap.set(s.movie_id, {
+          id: s.movie_id,
+          title: s.movie_title || `Фильм ${s.movie_id}`,
+        });
+      }
+    });
+    return Array.from(movieMap.values());
+  }, [cinemaSessions]);
   
+  // ✅ Теперь все хуки вызваны, можно делать ранние return
   if (loading) {
     return (
       <div className="min-h-screen pt-24 flex items-center justify-center">
@@ -163,7 +148,6 @@ export default function CinemaSchedule() {
           <span className="text-sm">Назад</span>
         </button>
         
-        {/* Cinema Info */}
         <div className="glass-strong rounded-2xl overflow-hidden">
           <div className="p-6 space-y-6">
             <div className="flex items-start justify-between mb-4">
@@ -260,8 +244,7 @@ export default function CinemaSchedule() {
           ) : (
             <div className="space-y-4">
               {Array.from(sessionsByMovie.entries()).map(([movieId, movieSessions]) => {
-                const movie = movies.find(m => m.id === movieId);
-                if (!movie) return null;
+                const movieTitle = movieSessions[0]?.movie_title || `Фильм ${movieId}`;
                 
                 return (
                   <motion.div 
@@ -271,56 +254,35 @@ export default function CinemaSchedule() {
                     className="glass rounded-xl p-4"
                   >
                     <div className="flex gap-4">
-                      {/* Movie Poster */}
-                      <div 
-                        className="w-20 h-28 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:scale-105 transition-transform"
-                        onClick={() => navigate(`/movie/${movie.id}`)}
-                      >
-                        <img 
-                          src={movie.posterUrl}
-                          alt={movie.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      
-                      {/* Movie Info & Showtimes */}
                       <div className="flex-1 min-w-0">
                         <h3 
                           className="font-bold text-lg mb-1 cursor-pointer hover:text-purple-400 transition-colors"
-                          onClick={() => navigate(`/movie/${movie.id}`)}
+                          onClick={() => navigate(`/movie/${movieId}`)}
                         >
-                          {movie.title}
+                          {movieTitle}
                         </h3>
                         
                         <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
                           <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                            <span className="text-white">{movie.rating}</span>
-                          </div>
-                          <span>•</span>
-                          <span>{movie.genre.slice(0, 2).join(', ')}</span>
-                          <span>•</span>
-                          <div className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            <span>{movie.duration} мин</span>
+                            <span>{movieSessions.length} сеанс(ов)</span>
                           </div>
                         </div>
                         
-                        {/* Showtimes Grid */}
                         <div className="flex flex-wrap gap-2">
                           {movieSessions.map((session) => {
                             return (
                               <button
                                 key={session.id}
                                 onClick={() => {
-                                  navigate(`/movie/${movie.id}/seats?session=${session.id}`);
+                                  navigate(`/movie/${movieId}/seats?session=${session.id}`);
                                 }}
                                 className="group relative"
                               >
                                 <div className="px-4 py-2 glass hover:liquid-gradient rounded-lg transition-all text-sm font-semibold flex flex-col items-center gap-0.5">
                                   <span className="text-white">{session.time}</span>
                                   <span className="text-xs text-gray-400 group-hover:text-purple-300 transition-colors">
-                                    {session.hallName}
+                                    {session.hall_name || `Зал ${session.hall_id}`}
                                   </span>
                                   <span className="text-xs text-purple-300 font-semibold">
                                     {formatRub(session.price)}

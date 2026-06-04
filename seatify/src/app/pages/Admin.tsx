@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { formatRub } from "../utils/formatRub";
 import { toast } from "sonner";
-// ✅ Импортируем РЕАЛЬНЫЕ API функции вместо заглушек
 import { 
   fetchMovies, 
   fetchSessionsByMovie, 
@@ -20,8 +19,13 @@ import {
   createCinema,
   updateCinema,
   deleteCinema,
+  createHall,
+  fetchCinemas,
+  fetchHallsByCinema,
   type Movie as ApiMovie, 
-  type Session as ApiSession 
+  type Session as ApiSession,
+  type Cinema as ApiCinema,
+  type Hall
 } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -36,7 +40,7 @@ const PRICE_STEPS = [99,149,199,249,299,349,399,449,499,549,599,649,699,749,799,
 const snapPrice = (n: number) =>
   PRICE_STEPS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
 
-// ─── Extended Types for Frontend (snake_case как в backend) ──────────────────
+// ─── Extended Types for Frontend ──────────────────────────────────────────────
 
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
@@ -51,17 +55,10 @@ interface ExtendedSession extends ApiSession {
   price: number;
 }
 
-interface ExtendedCinema {
-  id: number;
-  name: string;
-  address: string;
-  city: string;
-  rating: number;
-  facilities: string[];
+interface ExtendedCinema extends ApiCinema {
   totalHalls: number;
+  facilities: string[];
 }
-
-// ❌ УДАЛЕНЫ ВСЕ ЗАГЛУШКИ API (createMovieApi, updateMovieApi и т.д.)
 
 // ─── Root Component ───────────────────────────────────────────────────────────
 
@@ -75,6 +72,7 @@ export default function Admin() {
   const [moviesList, setMoviesList] = useState<ExtendedMovie[]>([]);
   const [cinemasList, setCinemasList] = useState<ExtendedCinema[]>([]);
   const [sessionsList, setSessionsList] = useState<ExtendedSession[]>([]);
+  const [hallsMap, setHallsMap] = useState<Record<number, { id: number; name: string }[]>>({});
   const [dataLoading, setDataLoading] = useState(true);
 
   if (!isLoading && (!user || !isAdmin())) {
@@ -110,22 +108,14 @@ export default function Admin() {
         }));
         setSessionsList(flatSessions);
 
-        // 3. Extract Cinemas from Sessions
-        const cinemaMap = new Map<number, ExtendedCinema>();
-        flatSessions.forEach(s => {
-          if (!cinemaMap.has(s.cinema_id)) {
-            cinemaMap.set(s.cinema_id, {
-              id: s.cinema_id,
-              name: `Кинотеатр ${s.cinema_id}`,
-              address: s.cinema_address || "Адрес уточняется",
-              city: s.cinema_city || "Москва",
-              rating: 4.5,
-              facilities: ["Wi-Fi"],
-              totalHalls: 1,
-            });
-          }
-        });
-        setCinemasList(Array.from(cinemaMap.values()));
+        // 3. Load Cinemas directly from API
+        const apiCinemas = await fetchCinemas();
+        const extendedCinemas: ExtendedCinema[] = apiCinemas.map(c => ({
+          ...c,
+          totalHalls: 0,
+          facilities: [],
+        }));
+        setCinemasList(extendedCinemas);
 
       } catch (error) {
         console.error("Failed to load admin data", error);
@@ -138,16 +128,37 @@ export default function Admin() {
     loadData();
   }, [user]);
 
-  const hallsMap = useMemo(() => {
-    const map: Record<number, { id: number; name: string }[]> = {};
-    sessionsList.forEach((s) => {
-      if (!map[s.cinema_id]) map[s.cinema_id] = [];
-      if (!map[s.cinema_id].find((h) => h.id === s.hall_id)) {
-        map[s.cinema_id].push({ id: s.hall_id, name: `Зал ${s.hall_id}` });
+  // Load halls for all cinemas
+  useEffect(() => {
+    const loadHalls = async () => {
+      const newMap: Record<number, { id: number; name: string }[]> = {};
+      
+      // First, extract from sessions
+      sessionsList.forEach((s) => {
+        if (!newMap[s.cinema_id]) newMap[s.cinema_id] = [];
+        if (!newMap[s.cinema_id].find((h) => h.id === s.hall_id)) {
+          newMap[s.cinema_id].push({ id: s.hall_id, name: s.hall_name || `Зал ${s.hall_id}` });
+        }
+      });
+      
+      // Then load from API for all cinemas
+      for (const cinema of cinemasList) {
+        const halls = await fetchHallsByCinema(cinema.id);
+        if (!newMap[cinema.id]) newMap[cinema.id] = [];
+        halls.forEach(h => {
+          if (!newMap[cinema.id].find(existing => existing.id === h.id)) {
+            newMap[cinema.id].push({ id: h.id, name: h.name });
+          }
+        });
       }
-    });
-    return map;
-  }, [sessionsList]);
+      
+      setHallsMap(newMap);
+    };
+    
+    if (cinemasList.length > 0) {
+      loadHalls();
+    }
+  }, [cinemasList, sessionsList]);
 
   const todaySessions = useMemo(
     () => sessionsList.filter((s) => s.date === TODAY),
@@ -242,6 +253,7 @@ export default function Admin() {
             cinemas={cinemasList}
             setCinemas={setCinemasList}
             hallsMap={hallsMap}
+            setHallsMap={setHallsMap}
           />
         )}
       </div>
@@ -300,11 +312,24 @@ function MoviesTab({
       
       if (id) {
         await updateMovie(id, cleanData);
-        setMovies((p) => p.map((m) => (m.id === id ? { ...m, ...cleanData, genre: data.genre, cast: data.cast, director: data.director } : m)));
+        setMovies((p) => p.map((m) => (m.id === id ? { 
+          ...m, 
+          ...cleanData, 
+          genre: data.genre ?? m.genre ?? [], 
+          cast: data.cast ?? m.cast ?? [], 
+          director: data.director ?? m.director ?? "",
+          rating: data.rating ?? m.rating ?? 7.5,
+        } : m)));
         toast.success("Фильм обновлён");
       } else {
         const newMovie = await createMovie(cleanData);
-        setMovies((p) => [...p, { ...newMovie, genre: data.genre, cast: data.cast, director: data.director }]);
+        setMovies((p) => [...p, { 
+          ...newMovie, 
+          genre: data.genre ?? [], 
+          cast: data.cast ?? [], 
+          director: data.director ?? "",
+          rating: data.rating ?? 7.5,
+        }]);
         toast.success("Фильм добавлен");
       }
       setPanelMovie(null);
@@ -655,7 +680,6 @@ function SessionsTab({
       const session = sessions.find(s => s.id === id);
       if (!session) return;
 
-      // Формируем start_time из date и нового time
       const startTime = `${session.date}T${editData.time}:00Z`;
       
       await updateSession(id, { 
@@ -882,7 +906,7 @@ function SessionsTab({
                     {/* Cinema / Hall */}
                     <td className="px-5 py-3">
                       <div className="text-xs font-medium truncate max-w-[160px]">{cinema?.name ?? "—"}</div>
-                      <div className="text-[11px] text-gray-500">Зал {session.hall_id}</div>
+                      <div className="text-[11px] text-gray-500">{session.hall_name || `Зал ${session.hall_id}`}</div>
                     </td>
 
                     {/* Date */}
@@ -1058,7 +1082,7 @@ function BulkSessionPanel({
     while (cur <= end) {
       const timeStr = cur.toTimeString().substring(0, 5);
       generated.push({
-        id: 0, // Временный ID для preview
+        id: 0,
         movie_id: movieId,
         cinema_id: cinemaId,
         hall_id: hallId,
@@ -1085,7 +1109,6 @@ function BulkSessionPanel({
       wide
     >
       <div className="space-y-4 pb-4">
-        {/* Movie */}
         <Field label="Фильм">
           <FSelect value={String(movieId)} onChange={(v) => { setMovieId(Number(v)); resetPreview(); }}>
             {movies.map((m) => (
@@ -1100,13 +1123,12 @@ function BulkSessionPanel({
             <div>
               <div className="text-sm font-semibold">{selectedMovie.title}</div>
               <div className="text-xs text-gray-400">
-                {selectedMovie.duration_minutes} мин · {selectedMovie.genre?.slice(0, 2).join(", ")}
+                {selectedMovie.duration_minutes} мин · {(selectedMovie.genre ?? []).slice(0, 2).join(", ")}
               </div>
             </div>
           </div>
         )}
 
-        {/* Cinema & Hall */}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Кинотеатр">
             <FSelect value={String(cinemaId)} onChange={(v) => { setCinemaId(Number(v)); resetPreview(); }}>
@@ -1130,7 +1152,6 @@ function BulkSessionPanel({
           </Field>
         </div>
 
-        {/* Date */}
         <Field label="Дата проведения">
           <FInput
             type="date"
@@ -1139,7 +1160,6 @@ function BulkSessionPanel({
           />
         </Field>
 
-        {/* Time range + interval */}
         <div className="grid grid-cols-3 gap-3">
           <Field label="Начало">
             <FInput type="time" value={startTime} onChange={(e) => { setStartTime(e.target.value); resetPreview(); }} />
@@ -1157,7 +1177,6 @@ function BulkSessionPanel({
           </Field>
         </div>
 
-        {/* Price */}
         <Field label="Цена (₽)">
           <FInput
             type="number"
@@ -1172,7 +1191,6 @@ function BulkSessionPanel({
           )}
         </Field>
 
-        {/* Generate button */}
         <button
           onClick={generate}
           className="w-full py-2.5 border border-purple-500/40 text-purple-300 rounded-xl text-sm font-medium hover:bg-purple-500/10 transition-colors flex items-center justify-center gap-2"
@@ -1180,7 +1198,6 @@ function BulkSessionPanel({
           <Clock size={14} /> Сгенерировать расписание
         </button>
 
-        {/* Preview */}
         {preview.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
@@ -1200,7 +1217,6 @@ function BulkSessionPanel({
           </div>
         )}
 
-        {/* Save */}
         <button
           onClick={() => {
             if (!preview.length) return toast.error("Сначала сгенерируйте расписание");
@@ -1254,7 +1270,7 @@ function AddSessionPanel({
     if (!movieId || !cinemaId || !hallId || !date || !time) return toast.error("Заполните все поля");
 
     onSave({
-      id: 0, // Backend создаст ID
+      id: 0,
       movie_id: movieId,
       cinema_id: cinemaId,
       hall_id: hallId,
@@ -1333,10 +1349,12 @@ function CinemasTab({
   cinemas,
   setCinemas,
   hallsMap,
+  setHallsMap,
 }: {
   cinemas: ExtendedCinema[];
   setCinemas: React.Dispatch<React.SetStateAction<ExtendedCinema[]>>;
   hallsMap: Record<number, { id: number; name: string }[]>;
+  setHallsMap: React.Dispatch<React.SetStateAction<Record<number, { id: number; name: string }[]>>>;
 }) {
   const [search, setSearch] = useState("");
   const [panelCinema, setPanelCinema] = useState<ExtendedCinema | "new" | null>(null);
@@ -1372,12 +1390,37 @@ function CinemasTab({
       
       if (data.id) {
         await updateCinema(data.id, cinemaData);
-        setCinemas((p) => p.map((c) => (c.id === data.id ? data : c)));
+        setCinemas((p) => p.map((c) => (c.id === data.id ? { ...c, ...cinemaData } : c)));
         toast.success("Кинотеатр обновлён");
       } else {
         const newCinema = await createCinema(cinemaData);
-        setCinemas((p) => [...p, data]);
-        toast.success("Кинотеатр добавлен");
+        
+        const totalHalls = data.totalHalls || 1;
+        const createdHalls = [];
+        for (let i = 1; i <= totalHalls; i++) {
+          try {
+            const hall = await createHall({
+              cinema_id: newCinema.id,
+              name: `Зал ${i}`,
+              rows: 10,
+              seats_per_row: 10,
+            });
+            createdHalls.push(hall);
+          } catch (e) {
+            console.error(`Failed to create hall ${i}:`, e);
+          }
+        }
+        
+        // Добавляем кинотеатр в список
+        setCinemas((p) => [...p, { ...newCinema, totalHalls, facilities: [] }]);
+        
+        // Обновляем hallsMap без перезагрузки страницы
+        setHallsMap((prev) => ({
+          ...prev,
+          [newCinema.id]: createdHalls.map(h => ({ id: h.id, name: h.name }))
+        }));
+        
+        toast.success(`Кинотеатр создан с ${createdHalls.length} зал(ами)`);
       }
       setPanelCinema(null);
     } catch (e: any) {
@@ -1521,6 +1564,7 @@ function CinemaPanel({
   const [form, setForm] = useState<any>({
     ...cinema,
     facilitiesStr: cinema?.facilities?.join(", ") ?? "",
+    totalHalls: cinema?.totalHalls || 1,
   });
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
@@ -1585,16 +1629,30 @@ function CinemaPanel({
               placeholder="4.5"
             />
           </Field>
-          <Field label="Количество залов">
-            <FInput
-              type="number"
-              min="1"
-              value={form.totalHalls ?? ""}
-              onChange={(e) => set("totalHalls", Number(e.target.value))}
-              placeholder="10"
-            />
-          </Field>
+          {isNew && (
+            <Field label="Количество залов">
+              <FInput
+                type="number"
+                min="1"
+                value={form.totalHalls ?? ""}
+                onChange={(e) => set("totalHalls", Number(e.target.value))}
+                placeholder="10"
+              />
+            </Field>
+          )}
         </div>
+
+        {isNew && (
+          <div className="text-xs text-gray-500 bg-white/5 rounded-lg p-3 border border-white/10">
+            💡 При создании кинотеатра автоматически создадутся залы с названиями "Зал 1", "Зал 2" и т.д. (по 10 рядов × 10 мест)
+          </div>
+        )}
+
+        {!isNew && (
+          <div className="text-xs text-gray-500 bg-white/5 rounded-lg p-3 border border-white/10">
+            ℹ️ Залы создаются автоматически при создании кинотеатра. Для управления залами обратитесь к разделу "Сеансы".
+          </div>
+        )}
 
         <Field label="Удобства (через запятую)">
           <FInput
@@ -1606,7 +1664,7 @@ function CinemaPanel({
 
         <button
           onClick={handleSave}
-          className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-purple-500/25"
+          className="w-full py-3 liquid-gradient rounded-xl font-semibold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
         >
           <Save size={14} /> Сохранить кинотеатр
         </button>
@@ -1643,7 +1701,6 @@ function SidePanel({
           wide ? "w-[520px]" : "w-[460px]"
         }`}
       >
-        {/* Panel header */}
         <div className="px-6 py-4 border-b border-white/8 flex items-center justify-between shrink-0 bg-black/40">
           <h2 className="font-semibold text-base flex items-center gap-2">
             {icon}
@@ -1656,7 +1713,6 @@ function SidePanel({
             <X size={17} />
           </button>
         </div>
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
           {children}
         </div>

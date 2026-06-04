@@ -20,16 +20,23 @@ import "slick-carousel/slick/slick-theme.css";
 import MovieCard from "../components/MovieCard";
 import CityDropdown from "../components/CityDropdown";
 import Footer from "../components/Footer";
-// Импортируем типы и API функции
-import { fetchMovies, fetchSessionsByMovie, type Movie as ApiMovie, type Session as ApiSession, type Cinema as ApiCinema } from "../services/api";
+import { 
+  fetchMovies, 
+  fetchSessionsByMovie, 
+  fetchCinemas,
+  type Movie as ApiMovie, 
+  type Session as ApiSession, 
+  type Cinema as ApiCinema 
+} from "../services/api";
 import { useCity } from "../contexts/CityContext";
 import { formatRub } from "../utils/formatRub";
 import { toast } from "sonner";
 
-// Вспомогательные типы для расширения данных с бэкенда локальными полями
+// Вспомогательные типы
 interface ExtendedMovie extends ApiMovie {
   genre: string[];
   rating: number;
+  posterUrl: string;
   bannerUrl?: string;
   trailerUrl?: string;
   cast?: string[];
@@ -45,13 +52,9 @@ interface ExtendedCinema extends ApiCinema {
 }
 
 interface ExtendedSession extends ApiSession {
-  time: string; // "14:00"
-  date: string; // "2026-05-27"
+  time: string;
+  date: string;
   price: number;
-  hallName: string;
-  movieId: number;
-  cinemaId: number;
-  availableSeats?: number;
 }
 
 export default function Home() {
@@ -66,26 +69,28 @@ export default function Home() {
   const [showAllCinemasModal, setShowAllCinemasModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Состояния для данных с бэкенда
   const [movies, setMovies] = useState<ExtendedMovie[]>([]);
   const [sessions, setSessions] = useState<ExtendedSession[]>([]);
   const [cinemas, setCinemas] = useState<ExtendedCinema[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Загрузка данных при монтировании
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        // 1. Загружаем фильмы
-        const apiMovies = await fetchMovies();
-        // Расширяем данные моковыми полями, которых нет в БД (жанры, рейтинг и т.д.)
+        // 1. Загружаем фильмы, кинотеатры и сеансы параллельно
+        const [apiMovies, apiCinemas] = await Promise.all([
+          fetchMovies(),
+          fetchCinemas(),
+        ]);
+
         const extendedMovies: ExtendedMovie[] = apiMovies.map((m, idx) => ({
           ...m,
-          genre: ["Фантастика", "Боевик"], // Заглушка, пока нет в БД
-          rating: 7.5 + (idx % 3) * 0.5,   // Заглушка
-          posterUrl: m.poster_url, 
-          bannerUrl: m.poster_url,         // Используем постер как баннер
+          genre: m.genre || ["Фантастика", "Боевик"],
+          rating: m.rating || (7.5 + (idx % 3) * 0.5),
+          posterUrl: m.poster_url,
+          bannerUrl: m.banner_url || m.poster_url,
+          trailerUrl: m.trailer_url,
         }));
         setMovies(extendedMovies);
 
@@ -98,32 +103,21 @@ export default function Home() {
           time: new Date(s.start_time).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
           date: new Date(s.start_time).toISOString().split('T')[0],
           price: s.base_price_cents / 100,
-          hallName: `Зал ${s.hall_id}`, // Заглушка имени зала
-          movieId: s.movie_id,
-          cinemaId: s.cinema_id,
         }));
         setSessions(flatSessions);
 
-        // 3. Формируем список кинотеатров на основе сеансов (так как отдельного эндпоинта пока нет)
-        const cinemaMap = new Map<number, ExtendedCinema>();
-        flatSessions.forEach(s => {
-          if (!cinemaMap.has(s.cinema_id)) {
-            cinemaMap.set(s.cinema_id, {
-              id: s.cinema_id,
-              name: `Кинотеатр ${s.cinema_id}`, // Заглушка имени
-              address: s.cinema_address,
-              city: s.cinema_city,
-              rating: 4.5,
-              distance: Math.random() * 10,
-              facilities: ["Wi-Fi", "Popcorn"],
-            });
-          }
-        });
-        setCinemas(Array.from(cinemaMap.values()));
+        // 3. Загружаем кинотеатры напрямую из API
+        const extendedCinemas: ExtendedCinema[] = apiCinemas.map(c => ({
+          ...c,
+          rating: c.rating || 4.5,
+          distance: Math.random() * 10,
+          facilities: ["Wi-Fi", "Popcorn"],
+        }));
+        setCinemas(extendedCinemas);
 
       } catch (error) {
         console.error("Failed to load data:", error);
-        toast.error("Не удалось загрузить данные сеансов");
+        toast.error("Не удалось загрузить данные");
       } finally {
         setLoading(false);
       }
@@ -132,20 +126,17 @@ export default function Home() {
     loadData();
   }, []);
 
-  // Handle scroll for sticky bar morphing
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Keep currentTime fresh
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Auto-rotate hero movie
   useEffect(() => {
     if (movies.length === 0) return;
     const interval = setInterval(() => {
@@ -154,7 +145,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [movies.length]);
 
-  // Generate next 7 days
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
@@ -163,73 +153,37 @@ export default function Home() {
       date.setDate(today.getDate() + i);
       dates.push({
         value: date.toISOString().split("T")[0],
-        label: i === 0 ? "Сегодня" : i === 1 ? "Завтра" : date.toLocaleDateString("ru-RU", { weekday: "short", month: "short", day: "numeric" }),
+        label: i === 0 ? "Сегодня" : i === 1 ? "Завтра" : date.toLocaleDateString("ru-RU", { weekday: 'short', month: 'short', day: 'numeric' }),
       });
     }
     return dates;
   }, []);
 
-  // Filter movies
   const filteredMovies = useMemo(() => {
     return movies.filter((movie) => {
       if (!movie) return false;
-
       const matchesGenre = selectedGenre === "Все" || movie.genre?.includes(selectedGenre);
       const matchesSearch = movie.title.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // Ищем сеансы для этого фильма
-      const hasSession = sessions.some((s) => {
-        if (!s) return false;
-        
-        // Проверка на совпадение ID фильма
-        const isSameMovie = s.movie_id === movie.id;
-        if (!isSameMovie) return false;
-
-        // Проверка города (берем из сессии, так как кинотеатры генерируются из сессий)
-        const isSameCity = s.cinema_city === selectedCity;
-        
-        // Проверка даты
-        const isSameDate = s.date === selectedDate;
-
-        // Проверка выбранного кинотеатра (если выбран)
-        // Обратите внимание: selectedCinema теперь может быть числом или строкой, приводим к числу
-        const isSameCinema = selectedCinema ? s.cinema_id === Number(selectedCinema) : true;
-
-        return isSameCity && isSameDate && isSameCinema;
-      });
-
-      // ИЗМЕНЕНИЕ: Если жанр и поиск совпадают, показываем фильм, даже если сеансов нет (hasSession = false).
-      // Это предотвратит исчезновение всех фильмов, если сеансы еще не загрузились или их нет на сегодня.
-      // Если вы хотите скрывать фильмы БЕЗ сеансов строго, оставьте && hasSession.
-      // Сейчас мы делаем: (Совпадения) && (Сеансы есть ИЛИ мы просто показываем список фильмов)
-      
-      // Вариант "Мягкий": Показываем фильмы всегда, если они подходят по поиску/жанру
-      return matchesGenre && matchesSearch; 
-      
-      // Вариант "Строгий" (как было раньше,可能导致空列表):
-      // return matchesGenre && matchesSearch && hasSession;
+      return matchesGenre && matchesSearch;
     });
-  }, [movies, sessions, selectedGenre, searchQuery, selectedCinema, selectedDate, selectedCity]);
+  }, [movies, selectedGenre, searchQuery]);
 
-  // Helper to get cinema by ID (now number)
   const getCinemaById = (id: number): ExtendedCinema | undefined => {
     return cinemas.find(c => c.id === id);
   };
 
-  // Sessions for selected date
   const sessionsForSelectedDate = useMemo(() => {
     return sessions.filter((s) => s.date === selectedDate && s.cinema_city === selectedCity);
   }, [sessions, selectedDate, selectedCity]);
 
-  // Cinemas with sessions logic
   const cinemasWithSessions = useMemo(() => {
     return cinemas
       .filter((c) => c.city === selectedCity)
       .map((cinema) => {
-        const cinemaSessions = sessionsForSelectedDate.filter((s) => s.cinemaId === cinema.id);
+        const cinemaSessions = sessionsForSelectedDate.filter((s) => s.cinema_id === cinema.id);
         const movieGroups = cinemaSessions.reduce((acc, session) => {
-          if (!acc[session.movieId]) acc[session.movieId] = [];
-          acc[session.movieId].push(session);
+          if (!acc[session.movie_id]) acc[session.movie_id] = [];
+          acc[session.movie_id].push(session);
           return acc;
         }, {} as Record<number, typeof cinemaSessions>);
 
@@ -242,10 +196,8 @@ export default function Home() {
   const nearestThreeCinemas = cinemasWithSessions.slice(0, 3);
   const remainingCinemas = cinemasWithSessions.slice(3);
 
-  // Hot Sessions Logic
   const hotSessions = useMemo(() => {
     const todayStr = currentTime.toISOString().split("T")[0];
-    const getTotalSeats = (hallName: string): number => 96; // Упрощено
 
     const result: Array<{
       session: ExtendedSession;
@@ -267,7 +219,6 @@ export default function Home() {
 
       if (diffMin < -20) continue;
 
-      // Имитация занятости мест
       const seatsPercent = Math.floor(Math.random() * 100); 
       const isAlmostSoldOut = seatsPercent <= 20;
       const isStartingSoon = diffMin >= -20 && diffMin <= 180;
@@ -285,8 +236,8 @@ export default function Home() {
 
       result.push({
         session: s,
-        movie: movies.find(m => m.id === s.movieId),
-        cinema: getCinemaById(s.cinemaId),
+        movie: movies.find(m => m.id === s.movie_id),
+        cinema: s.cinema_id ? getCinemaById(s.cinema_id) : undefined,
         badges,
         urgencyScore,
         minutesUntilStart: Math.floor(diffMin),
@@ -295,7 +246,7 @@ export default function Home() {
     }
 
     return result.sort((a, b) => a.urgencyScore - b.urgencyScore).slice(0, 12);
-  }, [selectedCity, currentTime, sessions, movies]);
+  }, [selectedCity, currentTime, sessions, movies, cinemas]);
 
   const genres = ["Все", "Боевик", "Фантастика", "Триллер", "Ужасы", "Приключения", "Фэнтези"];
   const categories = ["Все", "Сегодня", "Завтра", "Скоро", "Пушкинская карта", "Детям"];
@@ -327,7 +278,7 @@ export default function Home() {
               <div className="md:col-span-3">
                 <select
                   value={selectedCinema || ""}
-                  onChange={(e) => setSelectedCinema(e.target.value ? Number(e.target.value) : null)}
+                  onChange={(e) => setSelectedCinema(e.target.value ? String(e.target.value) : null)}
                   className="w-full px-3 py-2 glass rounded-xl text-sm text-white bg-transparent focus:outline-none focus:border-purple-500/50 transition-colors cursor-pointer"
                 >
                   <option value="" className="bg-[#1A1A22]">Все кинотеатры</option>
@@ -400,11 +351,11 @@ export default function Home() {
                       <span className="font-bold text-sm">{heroMovie.rating}</span>
                     </div>
                     <div className="flex gap-2">
-                      {heroMovie.genre?.slice(0, 2).map((genre) => (
+                      {(heroMovie.genre ?? []).slice(0, 2).map((genre) => (
                         <span key={genre} className="px-3 py-1 liquid-gradient-subtle text-purple-300 rounded-full text-xs font-medium">{genre}</span>
                       ))}
                     </div>
-                    <span className="text-sm text-gray-400">{heroMovie.duration} мин</span>
+                    <span className="text-sm text-gray-400">{heroMovie.duration_minutes} мин</span>
                   </div>
                   <p className="text-gray-300 text-sm mb-5 line-clamp-2 max-w-lg">{heroMovie.description}</p>
                   <button className="px-6 py-2.5 liquid-gradient hover:shadow-lg hover:shadow-purple-500/50 rounded-xl font-semibold transition-all duration-300 text-sm">Купить билет</button>
@@ -507,8 +458,8 @@ export default function Home() {
                       <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" /><span>{cinema.rating}</span>
                     </div>
                     <div className="flex gap-1 flex-wrap">
-                      {cinema.facilities.slice(0, 3).map((facility) => (
-                        <span key={facility} className="px-2 py-0.5 liquid-gradient-subtle text-purple-300 rounded text-xs">{facility}</span>
+                      {(cinema.facilities ?? []).slice(0, 3).map((facility, idx) => (
+                        <span key={`${facility}-${idx}`} className="px-2 py-0.5 liquid-gradient-subtle text-purple-300 rounded text-xs">{facility}</span>
                       ))}
                     </div>
                   </div>
@@ -524,7 +475,7 @@ export default function Home() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <h4 className="font-semibold text-xs truncate cursor-pointer hover:text-purple-400 transition-colors" onClick={() => (window.location.href = `/movie/${movie.id}`)}>{movie.title}</h4>
-                              <div className="text-xs text-gray-400">{movie.duration} мин</div>
+                              <div className="text-xs text-gray-400">{movie.duration_minutes} мин</div>
                             </div>
                           </div>
                           <div className="flex gap-1.5 flex-wrap">
@@ -673,7 +624,7 @@ export default function Home() {
                   return (
                     <motion.button
                       key={session.id}
-                      onClick={() => (window.location.href = `/movie/${session.movieId}/seats?session=${session.id}`)}
+                      onClick={() => (window.location.href = `/movie/${session.movie_id}/seats?session=${session.id}`)}
                       className={`w-[252px] flex-shrink-0 glass rounded-xl overflow-hidden text-left border transition-all ${borderGlow}`}
                       whileHover={{ y: -4, scale: 1.02 }}
                       transition={{ type: "spring", stiffness: 400, damping: 25 }}
