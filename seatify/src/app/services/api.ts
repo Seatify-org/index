@@ -1,6 +1,6 @@
 // src/app/services/api.ts
 
-const API_BASE_URL = import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083';
+const API_BASE_URL = '';
 
 export interface Movie {
   id: number;
@@ -37,7 +37,7 @@ export interface Cinema {
 
 export const fetchMovies = async (): Promise<Movie[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/movies`);
+    const response = await fetch(`${API_BASE_URL}/movies`);
     if (!response.ok) throw new Error('Ошибка загрузки фильмов');
     return await response.json();
   } catch (error) {
@@ -48,7 +48,7 @@ export const fetchMovies = async (): Promise<Movie[]> => {
 
 export const fetchSessionsByMovie = async (movieId: number): Promise<Session[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/movies/${movieId}/sessions`);
+    const response = await fetch(`${API_BASE_URL}/movies/${movieId}/sessions`);
     
     // Если сервер вернул 404 (сеансов нет), возвращаем пустой массив, а не ошибку
     if (response.status === 404) {
@@ -83,7 +83,7 @@ export const fetchSessionsByMovie = async (movieId: number): Promise<Session[]> 
 
 export const fetchSessionById = async (sessionId: number): Promise<Session | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}`);
+    const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
     if (response.status === 404) return null;
     if (!response.ok) throw new Error('Сеанс не найден');
     

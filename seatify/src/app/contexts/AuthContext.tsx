@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
+const AUTH_BASE_URL = '';
+
 interface User {
   id: number;
   email: string;
@@ -43,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const res = await fetch("http://localhost:8082/api/v1/auth/login", {
+      const res = await fetch(`${AUTH_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -55,9 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await res.json();
-      setToken(data.token);
+      setToken(data.access_token);
       setUser(data.user);
-      localStorage.setItem("token", data.token);
+      localStorage.setItem("token", data.access_token);
+      setToken(data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
       toast.success(`Добро пожаловать, ${data.user.name}!`);
@@ -71,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Функция регистрации
   const register = async (email: string, password: string, name: string) => {
     try {
-      const res = await fetch("http://localhost:8082/api/v1/auth/register", {
+      const res = await fetch(`${AUTH_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
@@ -83,9 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await res.json();
-      setToken(data.token);
+      setToken(data.access_token);
       setUser(data.user);
-      localStorage.setItem("token", data.token);
+      localStorage.setItem("token", data.access_token);
+      setToken(data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
       toast.success("Регистрация успешна!");

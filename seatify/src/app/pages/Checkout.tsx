@@ -110,6 +110,19 @@ export default function Checkout() {
     }
     return null;
   };
+
+  // Достаём user_id из JWT токена без сторонних библиотек
+  const getUserIdFromToken = (token: string): number | null => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('JWT payload:', payload); // временно — чтобы увидеть точные поля
+      const id = payload.user_id ?? payload.sub ?? payload.id ?? null;
+      return id ? Number(id) : null;
+    } catch (e) {
+      console.error('Не удалось распарсить JWT:', e);
+      return null;
+    }
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,39 +139,45 @@ export default function Checkout() {
       const totalAmount = Math.round((bookingData.grandTotal || bookingData.totalPrice) * 100);
       if (totalAmount <= 0) throw new Error('Сумма заказа некорректна');
 
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Необходима авторизация');
+        navigate('/');
+        return;
+      }
+
+      const userId = getUserIdFromToken(token);
+      if (!userId || userId <= 0) {
+        throw new Error('Не удалось определить пользователя. Войдите снова.');
+      }
+
       const paymentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Формируем тело запроса БЕЗ seat_ids, если на бэкенде нет таблицы связей
-      // И с user_id = 1 (заглушка)
       const payload = {
-        user_id: 1, 
         session_id: cleanSessionId,
         total_amount_cents: totalAmount,
         payment_id: paymentId,
         status: "pending"
       };
 
-      console.log("🚀 Отправка запроса:", payload);
+      console.log("🚀 Отправка запроса:", payload, "X-User-ID:", userId);
 
-      const response = await fetch(`${import.meta.env.VITE_BOOKING_SERVICE_URL || 'http://localhost:8083'}/api/v1/bookings`, {
+      const response = await fetch(`/bookings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          'X-User-ID': String(userId),  // ← бэкенд читает именно этот заголовок
         },
         body: JSON.stringify(payload),
       });
 
-      // Обработка ответа
-      let responseData;
       const text = await response.text();
       
       if (!response.ok) {
         console.error("❌ Ошибка сервера:", text);
-        // Если текст ошибки пустой или HTML (ошибка прокси/CORS до сервера)
         if (!text || text.startsWith('<')) {
-           throw new Error("Сервер вернул ошибку соединения или HTML вместо JSON. Проверьте консоль сервера.");
+          throw new Error("Ошибка соединения с сервером.");
         }
         try {
           const errJson = JSON.parse(text);
@@ -169,7 +188,7 @@ export default function Checkout() {
       }
 
       try {
-        responseData = JSON.parse(text);
+        JSON.parse(text);
       } catch (e) {
         throw new Error("Сервер вернул некорректный JSON");
       }
