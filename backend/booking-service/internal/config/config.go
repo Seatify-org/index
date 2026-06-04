@@ -9,13 +9,15 @@ import (
 type BookingConfig struct {
 	*config.Config
 	AuthSvcURL string
+	JWTSecret  string
 }
 
 func LoadBookingConfig() *BookingConfig {
 	baseConfig := config.Load()
 	return &BookingConfig{
 		Config:     baseConfig,
-		AuthSvcURL: getEnv("AUTH_SERVICE_URL", "http://localhost:8083"),
+		AuthSvcURL: getEnv("AUTH_SERVICE_URL", "http://localhost:8081"),
+		JWTSecret:  getEnv("JWT_SECRET", "super-secret-change-me"),
 	}
 }
 

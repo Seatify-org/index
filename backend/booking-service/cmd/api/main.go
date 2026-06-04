@@ -17,6 +17,7 @@ import (
 
 	_ "github.com/seatify/backend/booking-service/docs"
 	"github.com/seatify/backend/booking-service/internal/handler"
+	"github.com/seatify/backend/booking-service/internal/middleware"
 	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
 	"go.uber.org/zap"
@@ -70,7 +71,13 @@ func main() {
 	router.HandleFunc("/bookings/{id:[0-9]+}/confirm", bookingHandler.ConfirmBooking).Methods(http.MethodPatch)
 	router.HandleFunc("/bookings/{id:[0-9]+}/cancel", bookingHandler.CancelBooking).Methods(http.MethodPatch)
 
+	jwtSecret := getEnv("JWT_SECRET", "your-secret-key-change-in-production")
+	jwtMiddleware := middleware.JWTAuthMiddleware(jwtSecret)
+	adminMiddleware := middleware.RequireRole("admin")
+
 	admin := router.PathPrefix("/admin").Subrouter()
+	admin.Use(jwtMiddleware)
+	admin.Use(adminMiddleware)
 
 	admin.HandleFunc("/movies", adminHandler.GetMovies).Methods(http.MethodGet)
 	admin.HandleFunc("/movies", adminHandler.CreateMovie).Methods(http.MethodPost)

@@ -97,6 +97,7 @@ services:
       DB_PASSWORD: seatify_password
       DB_NAME: booking_service
       DB_SSLMODE: disable
+      JWT_SECRET: your-secret-key-change-in-production  # ← ДОБАВИТЬ ЭТУ СТРОКУ
     ports:
       - "8082:8082"
     restart: unless-stopped
