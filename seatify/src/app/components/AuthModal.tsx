@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Mail, Lock, User as UserIcon, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -11,6 +12,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }: AuthModalProps) {
+  const navigate = useNavigate(); // ← ДОБАВЛЕНО
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -28,15 +30,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }: A
 
     try {
       if (mode === 'signin') {
-        await login(formData.email, formData.password);
-        // Уведомление теперь показывается только внутри AuthContext.login
+        await login(formData.email, formData.password, navigate); // ← ПЕРЕДАЁМ navigate
       } else {
-        // Вызываем регистрацию. Уведомление покажется внутри AuthContext.register
-        await register(formData.email, formData.password, formData.name);
-        // УБРАНО: toast.success('Аккаунт успешно создан!'), чтобы не было дубля
+        await register(formData.email, formData.password, formData.name, navigate); // ← ПЕРЕДАЁМ navigate
       }
       
-      // Закрываем модалку. navigate внутри auth context уже сработал
       onClose();
       setFormData({ name: '', email: '', password: '' });
     } catch (error) {

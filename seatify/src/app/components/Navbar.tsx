@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Film, User, LogOut, Ticket, Settings, Shield, History, ChevronDown, MapPin, Sun, Moon, Check, Search, X, Menu } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -17,6 +17,7 @@ const sectionNames: Record<string, string> = {
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { selectedCity, setSelectedCity } = useCity();
   
@@ -94,7 +95,7 @@ export default function Navbar() {
   }, [location.pathname]);
   
   const handleLogout = () => {
-    logout();
+    logout(navigate);
     setShowProfileMenu(false);
     setShowMobileMenu(false);
   };

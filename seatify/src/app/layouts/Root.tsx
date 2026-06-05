@@ -10,7 +10,6 @@ export default function Root() {
       const body = document.body;
       const theme = localStorage.getItem('vite-ui-theme') || 'dark';
       
-      // Удаляем все классы темы
       root.classList.remove('light', 'dark', 'light-theme');
       body.classList.remove('light-theme');
       

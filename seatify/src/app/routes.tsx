@@ -17,7 +17,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: Root,
+    Component: Root, // ← Root layout будет содержать AuthProvider
     children: [
       { index: true, Component: Home },
       { path: "movie/:id", Component: MovieDetails },

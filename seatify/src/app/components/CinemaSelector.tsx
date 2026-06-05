@@ -28,7 +28,6 @@ export default function CinemaSelector({
     : null;
   
   const handleDetectLocation = () => {
-    // Simulate location detection
     onCityChange('Москва');
     setViewMode('list');
   };

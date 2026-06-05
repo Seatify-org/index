@@ -101,7 +101,7 @@ export default function Profile() {
   }, []);
   
   const handleLogout = () => {
-    logout();
+    logout(navigate); 
     toast.success('Вы успешно вышли');
     navigate('/');
   };

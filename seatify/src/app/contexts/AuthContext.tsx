@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { wsService } from "../services/websocket";
 
 const AUTH_BASE_URL = '';
 
@@ -14,9 +14,9 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>; // <-- Важно: register
-  logout: () => void;
+  login: (email: string, password: string, navigate: (to: string) => void) => Promise<void>;
+  register: (email: string, password: string, name: string, navigate: (to: string) => void) => Promise<void>;
+  logout: (navigate: (to: string) => void) => void;
   isAdmin: () => boolean;
   isLoading: boolean;
 }
@@ -27,7 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const initAuth = async () => {
@@ -36,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
           setUser(JSON.parse(storedUser));
+          wsService.connect(storedToken);
         }
       }
       setIsLoading(false);
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, navigate: (to: string) => void) => {
     try {
       const res = await fetch(`${AUTH_BASE_URL}/auth/login`, {
         method: "POST",
@@ -60,8 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem("token", data.access_token);
-      setToken(data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      wsService.connect(data.access_token);
 
       toast.success(`Добро пожаловать, ${data.user.name}!`);
       navigate("/");
@@ -71,8 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Функция регистрации
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, navigate: (to: string) => void) => {
     try {
       const res = await fetch(`${AUTH_BASE_URL}/auth/register`, {
         method: "POST",
@@ -89,8 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.access_token);
       setUser(data.user);
       localStorage.setItem("token", data.access_token);
-      setToken(data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      wsService.connect(data.access_token);
 
       toast.success("Регистрация успешна!");
       navigate("/");
@@ -100,7 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = (navigate: (to: string) => void) => {
+    wsService.disconnect();
     setUser(null);
     setToken(null);
     localStorage.removeItem("token");
