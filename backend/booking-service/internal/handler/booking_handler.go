@@ -44,7 +44,6 @@ func NewBookingHandler(bookingService BookingServiceInterface, logger *zap.Logge
 	}
 }
 
-// getUserIDFromContext извлекает user_id из контекста (установлен JWT middleware)
 func getUserIDFromContext(r *http.Request) (int64, error) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
 	if !ok {

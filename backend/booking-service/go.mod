@@ -6,6 +6,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Seatify-org/seatify-common v1.0.1-0.20260528060431-2125518ef9bb
 	github.com/gorilla/mux v1.8.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/http-swagger v1.3.4

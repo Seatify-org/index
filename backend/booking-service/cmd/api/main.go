@@ -14,13 +14,14 @@ import (
 
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.uber.org/zap"
 
 	_ "github.com/seatify/backend/booking-service/docs"
 	"github.com/seatify/backend/booking-service/internal/handler"
 	"github.com/seatify/backend/booking-service/internal/middleware"
 	"github.com/seatify/backend/booking-service/internal/repository"
 	"github.com/seatify/backend/booking-service/internal/service"
-	"go.uber.org/zap"
+	"github.com/seatify/backend/booking-service/internal/ws"
 )
 
 func main() {
@@ -59,6 +60,11 @@ func main() {
 	movieHandler := handler.NewMovieHandler(movieService, logger)
 	bookingHandler := handler.NewBookingHandler(bookingService, logger)
 
+	// Initialize WebSocket hub
+	wsHub := ws.NewHub(logger)
+	go wsHub.Run()
+	logger.Info("WebSocket hub started")
+
 	// Public: Movies
 	router.HandleFunc("/movies", movieHandler.GetMovies).Methods(http.MethodGet)
 	router.HandleFunc("/movies/{id:[0-9]+}", movieHandler.GetMovieByID).Methods(http.MethodGet)
@@ -70,6 +76,12 @@ func main() {
 	router.HandleFunc("/cinemas/{id:[0-9]+}", adminHandler.GetCinemaByID).Methods(http.MethodGet)
 	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/halls", adminHandler.GetHallsByCinema).Methods(http.MethodGet)
 	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/sessions", adminHandler.GetSessionsByCinema).Methods(http.MethodGet)
+
+	// WebSocket endpoint (защищён JWT middleware)
+	wsRouter := router.PathPrefix("/ws").Subrouter()
+	wsRouter.Use(middleware.WebSocketAuthMiddleware()) // ← ЭТУ СТРОКУ ДОБАВИТЬ
+	wsRouter.Use(jwtMiddleware)
+	wsRouter.HandleFunc("", ws.HandleWebSocket(wsHub, logger)).Methods(http.MethodGet)
 
 	// Public: Bookings (защищены JWT middleware)
 	bookings := router.PathPrefix("/bookings").Subrouter()
@@ -90,6 +102,8 @@ func main() {
 	router.HandleFunc("/cinemas/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/halls", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/cinemas/{cinemaId:[0-9]+}/sessions", optionsHandler).Methods(http.MethodOptions)
+
+	router.HandleFunc("/ws", optionsHandler).Methods(http.MethodOptions)
 
 	router.HandleFunc("/bookings", optionsHandler).Methods(http.MethodOptions)
 	router.HandleFunc("/bookings/{id:[0-9]+}", optionsHandler).Methods(http.MethodOptions)
@@ -143,6 +157,7 @@ func main() {
 		logger.Info("booking-service started",
 			zap.String("port", port),
 			zap.String("swagger_url", fmt.Sprintf("http://localhost:%s/swagger/", port)),
+			zap.String("websocket_url", fmt.Sprintf("ws://localhost:%s/ws", port)),
 		)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -207,6 +222,7 @@ func waitForShutdown(logger *zap.Logger, srv *http.Server) {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	// ИСПРАВЛЕНО: JSON должен быть строковым литералом
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
@@ -237,7 +253,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Extensions, Sec-WebSocket-Protocol")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {
